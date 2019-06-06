@@ -22,7 +22,6 @@ Cython==0.29
 dask==0.20.1
 decorator==4.3.0
 defusedxml==0.5.0
-Django==2.2.2
 docker-py==1.10.3
 docker-pycreds==0.2.1
 EasyProcess==0.2.5
