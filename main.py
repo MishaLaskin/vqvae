@@ -69,9 +69,9 @@ def train():
         loss.backward()
         optimizer.step()
 
-        reconstruction_errors.append(recon_loss.detach().numpy())
-        perplexities.append(perplexity.detach().numpy())
-        loss_vals.append(loss.detach().numpy())
+        reconstruction_errors.append(recon_loss.cpu().detach().numpy())
+        perplexities.append(perplexity.cpu().detach().numpy())
+        loss_vals.append(loss.cpu().detach().numpy())
 
         if i % args.log_interval == 0:
             print('Update #', i, 'Recon Error:',
