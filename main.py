@@ -3,8 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import argparse
-
-from utils import load_cifar, data_loaders
+import utils
 from models.vqvae import VQVAE
 
 parser = argparse.ArgumentParser()
@@ -24,6 +23,9 @@ parser.add_argument("--beta", type=float, default=.25)
 parser.add_argument("--learning_rate", type=float, default=3e-4)
 parser.add_argument("--log_interval", type=int, default=50)
 
+# whether or not to save model
+parser.add_argument("-save", action="store_true")
+
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,9 +33,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 """
 Load data and define batch data loaders
 """
-training_data, validation_data = load_cifar()
+training_data, validation_data = utils.load_cifar()
 
-training_loader, validation_loader = data_loaders(
+training_loader, validation_loader = utils.data_loaders(
     training_data, validation_data, args.batch_size)
 
 x_train_var = np.var(training_data.train_data / 255.0)
@@ -51,12 +53,18 @@ Set up optimizer and training loop
 optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, amsgrad=True)
 
 model.train()
-reconstruction_errors = []
-perplexities = []
-loss_vals = []
+
+results = {
+    'n_updates': 0,
+    'recon_errors': [],
+    'loss_vals': [],
+    'perplexities': [],
+}
 
 
 def train():
+    timestamp = utils.readable_timestamp()
+
     for i in range(args.n_updates):
         (x, _) = next(iter(training_loader))
         x = x.to(device)
@@ -69,15 +77,22 @@ def train():
         loss.backward()
         optimizer.step()
 
-        reconstruction_errors.append(recon_loss.cpu().detach().numpy())
-        perplexities.append(perplexity.cpu().detach().numpy())
-        loss_vals.append(loss.cpu().detach().numpy())
+        results["recon_errors"].append(recon_loss.cpu().detach().numpy())
+        results["perplexities"].append(perplexity.cpu().detach().numpy())
+        results["loss_vals"].append(loss.cpu().detach().numpy())
+        results["n_updates"] = i
 
         if i % args.log_interval == 0:
+            """
+            save model and print values
+            """
+            if args.save:
+                utils.save_model_and_results(model, results, timestamp)
+
             print('Update #', i, 'Recon Error:',
-                  np.mean(reconstruction_errors[-args.log_interval:]),
-                  'Loss', np.mean(loss_vals[-args.log_interval:]),
-                  'Perplexity:', np.mean(perplexities[-args.log_interval:]))
+                  np.mean(results["recon_errors"][-args.log_interval:]),
+                  'Loss', np.mean(results["loss_vals"][-args.log_interval:]),
+                  'Perplexity:', np.mean(results["perplexities"][-args.log_interval:]))
 
 
 if __name__ == "__main__":

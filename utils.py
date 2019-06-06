@@ -2,6 +2,8 @@ import torch
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+import time
+import os
 
 
 def load_cifar():
@@ -31,3 +33,19 @@ def data_loaders(train_data, val_data, batch_size):
                             shuffle=True,
                             pin_memory=True)
     return train_loader, val_loader
+
+
+def readable_timestamp():
+    return time.ctime().replace('  ', ' ').replace(
+        ' ', '_').replace(':', '_').lower()
+
+
+def save_model_and_results(model, results, timestamp):
+    SAVE_MODEL_PATH = os.getcwd() + '/results'
+
+    results_to_save = {
+        'model': model.state_dict(),
+        'results': results
+    }
+    torch.save(results_to_save,
+               SAVE_MODEL_PATH + '/vqvae_data_' + timestamp + '.pth')
