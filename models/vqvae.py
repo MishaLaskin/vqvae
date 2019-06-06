@@ -21,13 +21,8 @@ class VQVAE(nn.Module):
         self.decoder = Decoder(embedding_dim, h_dim, n_res_layers, res_h_dim)
 
     def forward(self, x):
-        x_np = x.detach().numpy()
-        # print('x mean / std / shape', np.mean(x_np),
-        #      np.std(x_np), x_np.shape)
+
         z_e = self.encoder(x)
-        z_e_np = z_e.detach().numpy()
-        # print('z_e mean / std / shape', np.mean(z_e_np),
-        #      np.std(z_e_np), z_e_np.shape)
 
         z_e = self.pre_quantization_conv(z_e)
         embedding_loss, z_q, perplexity, _ = self.vector_quantization(z_e)
