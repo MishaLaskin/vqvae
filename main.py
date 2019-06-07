@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 """
 Hyperparameters
 """
+timestamp = utils.readable_timestamp()
 
 parser.add_argument("--batch_size", type=int, default=32)
 parser.add_argument("--n_updates", type=int, default=5000)
@@ -26,16 +27,18 @@ parser.add_argument("--dataset",  type=str, default='CIFAR10')
 
 # whether or not to save model
 parser.add_argument("-save", action="store_true")
-
+parser.add_argument("--filename",  type=str, default=timestamp)
 
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+if args.save:
+    print('Results will be saved in ./results/vqvae_' + args.filename + '.pth')
+
 """
 Load data and define batch data loaders
 """
-
 
 if args.dataset == 'CIFAR10':
     training_data, validation_data = utils.load_cifar()
@@ -76,7 +79,6 @@ results = {
 
 
 def train():
-    timestamp = utils.readable_timestamp()
 
     for i in range(args.n_updates):
         (x, _) = next(iter(training_loader))
@@ -100,7 +102,9 @@ def train():
             save model and print values
             """
             if args.save:
-                utils.save_model_and_results(model, results, timestamp)
+                hyperparameters = args.__dict__
+                utils.save_model_and_results(
+                    model, results, hyperparameters, timestamp)
 
             print('Update #', i, 'Recon Error:',
                   np.mean(results["recon_errors"][-args.log_interval:]),

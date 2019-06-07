@@ -64,12 +64,13 @@ def readable_timestamp():
         ' ', '_').replace(':', '_').lower()
 
 
-def save_model_and_results(model, results, timestamp):
+def save_model_and_results(model, results, hyperparameters, timestamp):
     SAVE_MODEL_PATH = os.getcwd() + '/results'
 
     results_to_save = {
         'model': model.state_dict(),
-        'results': results
+        'results': results,
+        'hyperparameters': hyperparameters
     }
     torch.save(results_to_save,
                SAVE_MODEL_PATH + '/vqvae_data_' + timestamp + '.pth')
