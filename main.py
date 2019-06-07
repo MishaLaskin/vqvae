@@ -90,7 +90,7 @@ def train():
             if args.save:
                 hyperparameters = args.__dict__
                 utils.save_model_and_results(
-                    model, results, hyperparameters, timestamp)
+                    model, results, hyperparameters, args.filename)
 
             print('Update #', i, 'Recon Error:',
                   np.mean(results["recon_errors"][-args.log_interval:]),
