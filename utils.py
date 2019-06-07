@@ -25,8 +25,10 @@ def load_cifar():
 
 
 def load_block():
-    data_file_path = os.path.expanduser(
-        '~') + '/data/randact_traj_length_20_n_trials_50_n_contexts_150.npy'
+    #data_folder_path = os.path.expanduser('~')
+    data_folder_path = os.getcwd()
+    data_file_path = data_folder_path + \
+        '/data/randact_traj_length_20_n_trials_50_n_contexts_150.npy'
 
     train = BlockDataset(data_file_path, train=True,
                          transform=transforms.Compose([

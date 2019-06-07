@@ -22,9 +22,11 @@ parser.add_argument("--n_embeddings", type=int, default=512)
 parser.add_argument("--beta", type=float, default=.25)
 parser.add_argument("--learning_rate", type=float, default=3e-4)
 parser.add_argument("--log_interval", type=int, default=50)
+parser.add_argument("--dataset",  type=str, default='CIFAR10')
 
 # whether or not to save model
 parser.add_argument("-save", action="store_true")
+
 
 args = parser.parse_args()
 
@@ -33,14 +35,23 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 """
 Load data and define batch data loaders
 """
-training_data, validation_data = utils.load_block()
-print(training_data.shape)
-print(np.var(training_data / 255.0))
-assert False
-training_loader, validation_loader = utils.data_loaders(
-    training_data, validation_data, args.batch_size)
 
-x_train_var = np.var(training_data.train_data / 255.0)
+
+if args.dataset == 'CIFAR10':
+    training_data, validation_data = utils.load_cifar()
+    training_loader, validation_loader = utils.data_loaders(
+        training_data, validation_data, args.batch_size)
+    x_train_var = np.var(training_data.train_data / 255.0)
+
+elif args.dataset == 'BLOCK':
+    training_data, validation_data = utils.load_block()
+    training_loader, validation_loader = utils.data_loaders(
+        training_data, validation_data, args.batch_size)
+
+    x_train_var = np.var(training_data.data / 255.0)
+else:
+    raise ValueError(
+        'Invalid dataset: only CIFAR10 and BLOCK datasets are supported.')
 
 """
 Set up VQ-VAE model with components defined in ./models/ folder
