@@ -40,22 +40,8 @@ if args.save:
 Load data and define batch data loaders
 """
 
-if args.dataset == 'CIFAR10':
-    training_data, validation_data = utils.load_cifar()
-    training_loader, validation_loader = utils.data_loaders(
-        training_data, validation_data, args.batch_size)
-    x_train_var = np.var(training_data.train_data / 255.0)
-
-elif args.dataset == 'BLOCK':
-    training_data, validation_data = utils.load_block()
-    training_loader, validation_loader = utils.data_loaders(
-        training_data, validation_data, args.batch_size)
-
-    x_train_var = np.var(training_data.data / 255.0)
-else:
-    raise ValueError(
-        'Invalid dataset: only CIFAR10 and BLOCK datasets are supported.')
-
+training_data, validation_data, training_loader, validation_loader, x_train_var = utils.load_data_and_data_loaders(
+    args.dataset, args.batch_size)
 """
 Set up VQ-VAE model with components defined in ./models/ folder
 """
