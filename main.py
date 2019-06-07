@@ -34,7 +34,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 Load data and define batch data loaders
 """
 training_data, validation_data = utils.load_block()
-
+print(training_data.shape)
+print(np.var(training_data / 255.0))
+assert False
 training_loader, validation_loader = utils.data_loaders(
     training_data, validation_data, args.batch_size)
 
