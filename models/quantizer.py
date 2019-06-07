@@ -52,9 +52,6 @@ class VectorQuantizer(nn.Module):
 
         # get quantized latent vectors
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)
-
-        print(print(min_encodings))
-
         # compute loss for embedding
         loss = torch.mean((z_q.detach()-z)**2) + self.beta * \
             torch.mean((z_q - z.detach()) ** 2)
@@ -69,5 +66,4 @@ class VectorQuantizer(nn.Module):
         # reshape back to match original input shape
         z_q = z_q.permute(0, 3, 1, 2).contiguous()
 
-        assert False
         return loss, z_q, perplexity, min_encodings
