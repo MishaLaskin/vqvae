@@ -29,11 +29,17 @@ class VectorQuantizer(nn.Module):
     def forward(self, z):
         """
         Inputs the output of the encoder network z and maps it to a discrete 
-        one-hot vector that is the index of the closes embedding vector e_j
+        one-hot vector that is the index of the closest embedding vector e_j
 
         z (continuous) -> z_q (discrete)
 
         z.shape = (batch, channel, height, width)
+
+        quantization pipeline:
+
+            1. get encoder input (B,C,H,W)
+            2. flatten input to (B*H*W,C)
+
         """
         # reshape z -> (batch, height, width, channel) and flatten
         z = z.permute(0, 2, 3, 1).contiguous()
@@ -52,6 +58,7 @@ class VectorQuantizer(nn.Module):
 
         # get quantized latent vectors
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)
+
         # compute loss for embedding
         loss = torch.mean((z_q.detach()-z)**2) + self.beta * \
             torch.mean((z_q - z.detach()) ** 2)
@@ -66,4 +73,4 @@ class VectorQuantizer(nn.Module):
         # reshape back to match original input shape
         z_q = z_q.permute(0, 3, 1, 2).contiguous()
 
-        return loss, z_q, perplexity, min_encodings
+        return loss, z_q, perplexity, min_encodings, min_encoding_indices
