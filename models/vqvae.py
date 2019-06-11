@@ -26,7 +26,7 @@ class VQVAE(nn.Module):
         else:
             self.img_to_embedding_map = None
 
-    def forward(self, x, verbose=True):
+    def forward(self, x, verbose=False):
 
         z_e = self.encoder(x)
 
