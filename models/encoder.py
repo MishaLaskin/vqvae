@@ -32,11 +32,8 @@ class Encoder(nn.Module):
             nn.Conv2d(h_dim // 2, h_dim, kernel_size=kernel,
                       stride=stride, padding=1),
             nn.ReLU(),
-            nn.Conv2d(h_dim, h_dim, kernel_size=kernel,
-                      stride=stride, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(h_dim, h_dim, kernel_size=kernel,
-                      stride=stride, padding=1),
+            nn.Conv2d(h_dim, h_dim, kernel_size=kernel-1,
+                      stride=stride-1, padding=1),
             ResidualStack(
                 h_dim, h_dim, res_h_dim, n_res_layers)
 
