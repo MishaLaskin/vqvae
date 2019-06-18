@@ -4,7 +4,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 import time
 import os
-from datasets.block import BlockDataset
+from datasets.block import BlockDataset, LatentBlockDataset
 import numpy as np
 
 
@@ -45,6 +45,18 @@ def load_block():
                        ]))
     return train, val
 
+def load_latent_block():
+    data_folder_path = os.getcwd()
+    data_file_path = data_folder_path + \
+        '/data/latent_e_indices.npy'
+
+    train = LatentBlockDataset(data_file_path, train=True,
+                         transform=None)
+
+    val = LatentBlockDataset(data_file_path, train=False,
+                       transform=None)
+    return train, val
+
 
 def data_loaders(train_data, val_data, batch_size):
 
@@ -72,6 +84,13 @@ def load_data_and_data_loaders(dataset, batch_size):
             training_data, validation_data, batch_size)
 
         x_train_var = np.var(training_data.data / 255.0)
+    elif dataset == 'LATENT_BLOCK':
+        training_data, validation_data = load_latent_block()
+        training_loader, validation_loader = data_loaders(
+            training_data, validation_data, batch_size)
+
+        x_train_var = np.var(training_data.data)
+
     else:
         raise ValueError(
             'Invalid dataset: only CIFAR10 and BLOCK datasets are supported.')
