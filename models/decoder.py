@@ -21,14 +21,18 @@ class Decoder(nn.Module):
 
     def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim):
         super(Decoder, self).__init__()
+        kernel = 4
+        stride = 2
 
         self.inverse_conv_stack = nn.Sequential(
-            nn.Conv2d(in_dim, h_dim, kernel_size=3, stride=1, padding=1),
+            nn.ConvTranspose2d(
+                in_dim, h_dim, kernel_size=kernel-1, stride=stride-1, padding=1),
             ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
             nn.ConvTranspose2d(h_dim, h_dim // 2,
-                               kernel_size=4, stride=2, padding=1),
+                               kernel_size=kernel, stride=stride, padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(h_dim//2, 3, kernel_size=4, stride=2, padding=1)
+            nn.ConvTranspose2d(h_dim//2, 3, kernel_size=kernel,
+                               stride=stride, padding=1)
         )
 
     def forward(self, x):
