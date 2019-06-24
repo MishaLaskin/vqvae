@@ -6,7 +6,7 @@ You can find the author's [original implementation in Tensorflow here](https://g
 
 ## Installing Dependencies
 
-To install dependencies, create a conda or virtual environment with Python 3 and then run `pip install -r requirements.txt`.
+To install dependencies, create a conda or virtual environment with Python 3 and then run `pip install -r requirements.txt`. 
 
 ## Running the VQ VAE
 
@@ -45,3 +45,20 @@ models/
     - residual.py -> ResidualLayer, ResidualStack
     - vqvae.py -> VQVAE
 ```
+
+## PixelCNN - Sampling from the VQ VAE latent space 
+
+To sample from the latent space, we fit a PixelCNN over the latent pixel values `z_ij`. The trick here is recognizing that the VQ VAE maps an image to a latent space that has the same structure as a 1 channel image. For example, if you run the default VQ VAE parameters you'll RGB map images of shape `(32,32,3)` to a latent space with shape `(8,8,1)`, which is equivalent to an 8x8 grayscale image. Therefore, you can use a PixelCNN to fit a distribution over the "pixel" values of the 8x8 1-channel latent space.
+
+To train the PixelCNN on latent representations, you first need to follow these steps:
+
+1. Train the VQ VAE on your dataset of choice
+2. Use saved VQ VAE parameters to encode your dataset and save discrete latent space representations with `np.save` API. In the `quantizer.py` this is the `min_encoding_indices` variable. 
+3. Specify path to your saved latent space dataset in `utils.load_latent_block` function.
+4. Run the PixelCNN script
+
+To run the PixelCNN, simply type 
+
+`python pixelcnn/gated_pixelcnn.py`
+
+as well as any parameters (see the argparse statements). The default dataset is `LATENT_BLOCK` which will only work if you have trained your VQ VAE and saved the latent representations.
