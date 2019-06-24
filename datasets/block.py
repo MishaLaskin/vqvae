@@ -15,7 +15,10 @@ class BlockDataset(Dataset):
         print('Done loading block data')
         data = np.array([cv2.resize(x[0][0][:, :, :3], dsize=(
             32, 32), interpolation=cv2.INTER_CUBIC) for x in data])
-        self.data = data[:-500] if train else data[-500:]
+
+        n = data.shape[0]
+        cutoff = n//10
+        self.data = data[:-cutoff] if train else data[-cutoff:]
         self.transform = transform
 
     def __getitem__(self, index):
