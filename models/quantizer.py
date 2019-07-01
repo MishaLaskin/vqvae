@@ -59,16 +59,21 @@ class VectorQuantizer(nn.Module):
         # get quantized latent vectors
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)
 
+        # perplexity
+        e_mean = torch.mean(min_encodings, dim=0)
+        entropy = -torch.sum(e_mean * torch.log(e_mean + 1e-10))
+        perplexity = torch.exp(-torch.sum(e_mean * torch.log(e_mean + 1e-10)))
+
         # compute loss for embedding
+
+        # print(self.embedding.weight)
+        # assert False
+        alpha = 0.0
         loss = torch.mean((z_q.detach()-z)**2) + self.beta * \
-            torch.mean((z_q - z.detach()) ** 2)
+            torch.mean((z_q - z.detach()) ** 2) + alpha * entropy
 
         # preserve gradients
         z_q = z + (z_q - z).detach()
-
-        # perplexity
-        e_mean = torch.mean(min_encodings, dim=0)
-        perplexity = torch.exp(-torch.sum(e_mean * torch.log(e_mean + 1e-10)))
 
         # reshape back to match original input shape
         z_q = z_q.permute(0, 3, 1, 2).contiguous()

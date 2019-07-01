@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import argparse
 import utils
+from tqdm import tqdm
 from models.vqvae import VQVAE
 
 parser = argparse.ArgumentParser()
@@ -32,9 +33,11 @@ parser.add_argument("--filename",  type=str, default=timestamp)
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+saved_name = 'vqvae_data_' + args.filename + 'ne' + \
+    str(args.n_embeddings) + 'nd' + str(args.embedding_dim) + '.pth'
 if args.save:
-    print('Results will be saved in ./results/vqvae_' + args.filename + '.pth')
+
+    print('Results will be saved in ./results/'+saved_name)
 
 """
 Load data and define batch data loaders
@@ -66,13 +69,13 @@ results = {
 
 def train():
 
-    for i in range(args.n_updates):
+    for i in tqdm(range(args.n_updates)):
         (x, _) = next(iter(training_loader))
         x = x.to(device)
         optimizer.zero_grad()
 
         embedding_loss, x_hat, perplexity = model(x)
-        recon_loss = torch.mean((x_hat - x)**2) / x_train_var
+        recon_loss = 40.0 * torch.mean((x_hat - x)**2) / x_train_var
         loss = recon_loss + embedding_loss
 
         loss.backward()
@@ -90,7 +93,7 @@ def train():
             if args.save:
                 hyperparameters = args.__dict__
                 utils.save_model_and_results(
-                    model, results, hyperparameters, args.filename)
+                    model, results, hyperparameters, saved_name)
 
             print('Update #', i, 'Recon Error:',
                   np.mean(results["recon_errors"][-args.log_interval:]),

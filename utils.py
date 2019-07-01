@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader
 import time
 import os
 from datasets.block import BlockDataset, LatentBlockDataset
+from datasets.base import ImageDataset
+
 import numpy as np
 
 
@@ -45,16 +47,38 @@ def load_block():
                        ]))
     return train, val
 
+
+def load_point_mass():
+    data_folder_path = os.getcwd()
+    data_file_path = data_folder_path + \
+        '/data/point_mass_length100_paths_2000.npy'
+
+    train = ImageDataset(data_file_path, train=True,
+                         transform=transforms.Compose([
+                             transforms.ToTensor(),
+                             transforms.Normalize(
+                                 (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                         ]))
+
+    val = ImageDataset(data_file_path, train=False,
+                       transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize(
+                               (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                       ]))
+    return train, val
+
+
 def load_latent_block():
     data_folder_path = os.getcwd()
     data_file_path = data_folder_path + \
         '/data/latent_e_indices.npy'
 
     train = LatentBlockDataset(data_file_path, train=True,
-                         transform=None)
+                               transform=None)
 
     val = LatentBlockDataset(data_file_path, train=False,
-                       transform=None)
+                             transform=None)
     return train, val
 
 
@@ -91,6 +115,13 @@ def load_data_and_data_loaders(dataset, batch_size):
 
         x_train_var = np.var(training_data.data)
 
+    elif dataset == 'POINTMASS':
+        training_data, validation_data = load_point_mass()
+        training_loader, validation_loader = data_loaders(
+            training_data, validation_data, batch_size)
+
+        x_train_var = np.var(training_data.data)
+
     else:
         raise ValueError(
             'Invalid dataset: only CIFAR10 and BLOCK datasets are supported.')
@@ -103,8 +134,8 @@ def readable_timestamp():
         ' ', '_').replace(':', '_').lower()
 
 
-def save_model_and_results(model, results, hyperparameters, timestamp):
-    SAVE_MODEL_PATH = os.getcwd() + '/results'
+def save_model_and_results(model, results, hyperparameters, saved_name):
+    SAVE_MODEL_PATH = os.getcwd() + '/results/'
 
     results_to_save = {
         'model': model.state_dict(),
@@ -112,4 +143,4 @@ def save_model_and_results(model, results, hyperparameters, timestamp):
         'hyperparameters': hyperparameters
     }
     torch.save(results_to_save,
-               SAVE_MODEL_PATH + '/vqvae_data_' + timestamp + '.pth')
+               SAVE_MODEL_PATH + saved_name)
