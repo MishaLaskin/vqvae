@@ -15,25 +15,26 @@ Hyperparameters
 timestamp = utils.readable_timestamp()
 
 parser.add_argument("--batch_size", type=int, default=32)
-parser.add_argument("--n_updates", type=int, default=5000)
+parser.add_argument("--n_updates", type=int, default=10000)
 parser.add_argument("--n_hiddens", type=int, default=128)
 parser.add_argument("--n_residual_hiddens", type=int, default=32)
 parser.add_argument("--n_residual_layers", type=int, default=2)
-parser.add_argument("--embedding_dim", type=int, default=64)
-parser.add_argument("--n_embeddings", type=int, default=512)
+parser.add_argument("--embedding_dim", type=int, default=16)
+parser.add_argument("--n_embeddings", type=int, default=16)
 parser.add_argument("--beta", type=float, default=.25)
 parser.add_argument("--learning_rate", type=float, default=3e-4)
-parser.add_argument("--log_interval", type=int, default=50)
-parser.add_argument("--dataset",  type=str, default='CIFAR10')
+parser.add_argument("--log_interval", type=int, default=100)
+parser.add_argument("--dataset",  type=str, default='POINTMASS')
 
 # whether or not to save model
 parser.add_argument("-save", action="store_true")
-parser.add_argument("--filename",  type=str, default=timestamp)
-
+parser.add_argument("--filename",  type=str, default='point_mass_jul2')
+parser.add_argument("--data_file_path", type=str,
+                    default='/home/misha/downloads/vqvae/data/point_mass_length100_paths_200.npy')
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-saved_name = 'vqvae_data_' + args.filename + 'ne' + \
+saved_name = 'vqvae_data_' + args.filename + '_ne' + \
     str(args.n_embeddings) + 'nd' + str(args.embedding_dim) + '.pth'
 if args.save:
 
@@ -44,7 +45,7 @@ Load data and define batch data loaders
 """
 
 training_data, validation_data, training_loader, validation_loader, x_train_var = utils.load_data_and_data_loaders(
-    args.dataset, args.batch_size)
+    args.dataset, args.data_file_path, args.batch_size)
 """
 Set up VQ-VAE model with components defined in ./models/ folder
 """

@@ -2,8 +2,8 @@
 import os
 import torch
 import argparse
-from models.vqvae import VQVAE
-import utils
+from vqvae.models.vqvae import VQVAE
+from vqvae import utils
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
@@ -31,12 +31,16 @@ save graph as well as pointers to data and vqvae model used
 class RepresentationGraph:
 
     def __init__(self,
-                 model_path='vqvae_data_point_mass_v2ne16nd16.pth',
+                 model_filename='must_specify_this',
+                 data_file_path='must_specify_this',
+                 model_dir=None,
                  dataset_name='POINTMASS',
                  min_rep_count=100,
                  batch_size=256,
                  path_length=100):
-        self.model_path = model_path
+        self.model_filename = model_filename
+        self.data_file_path = data_file_path
+        self.model_dir = model_dir
         self.dataset_name = dataset_name
         self.min_rep_count = min_rep_count
         self.batch_size = batch_size
@@ -48,18 +52,19 @@ class RepresentationGraph:
         self._load_model()
         print('loading collected path data')
         self._load_data()
+        self._load_state_data()
         print('encoding data into latent representations')
-        self._encode_data()
+        self.rep_dict, self.rep_to_state = self._encode_data()
         print('building representation transition graph')
-        self._build_graph()
+        self.graph = self._build_graph()
 
     def _load_model(self):
-        path = os.getcwd() + '/results/'
+        path = os.getcwd() + '/results/' if self.model_dir is None else self.model_dir
 
         if torch.cuda.is_available():
-            data = torch.load(path + self.model_path)
+            data = torch.load(path + self.model_filename)
         else:
-            data = torch.load(path+self.model_path,
+            data = torch.load(path+self.model_filename,
                               map_location=lambda storage, loc: storage)
 
         params = data["hyperparameters"]
@@ -73,9 +78,15 @@ class RepresentationGraph:
         self.model = model
         self.model_params = data["hyperparameters"]
 
+    def _load_state_data(self):
+        train, val = utils.load_point_mass(
+            data_file_path=self.data_file_path, state_version=True)
+        self.state_train_loader, self.state_val_loader = utils.data_loaders(
+            train, val, self.batch_size, shuffle=False)
+
     def _load_data(self):
         tr_data, val_data, _, _, _ = utils.load_data_and_data_loaders(
-            self.dataset_name, self.batch_size)
+            self.dataset_name, self.data_file_path, self.batch_size)
         self.train_loader = DataLoader(tr_data,
                                        batch_size=self.batch_size,
                                        shuffle=False,
@@ -89,15 +100,15 @@ class RepresentationGraph:
     def _encode_data(self):
 
         d = {}
-        # iterate over all data
+        rep_to_state = {}
+        # iterate over all data - state and image data are ordered in the same way
 
-        for i, data in tqdm(enumerate(iter(self.train_loader))):
+        for i, (data, state_data) in tqdm(enumerate(iter(zip(self.train_loader, self.state_train_loader)))):
             _, _, _, e_indices = self._encode_one_batch(data)
-
             # 64 because the encoding should be z.shape = (8,8,n_embeddings)
             n = int(len(e_indices)/64)
-            for i in range(n):
-                k = e_indices[64*i:64*i+64].squeeze().cpu().detach().numpy()
+            for j in range(n):
+                k = e_indices[64*j:64*j+64].squeeze().cpu().detach().numpy()
                 hash_ = hash(tuple(k))
 
                 if hash_ not in d:
@@ -105,13 +116,18 @@ class RepresentationGraph:
                 else:
                     d[hash_] += 1
 
-        self.rep_dict = dict((k, v)
-                             for k, v in d.items() if v >= self.min_rep_count)
+                if hash_ not in rep_to_state:
+                    rep_to_state[hash_] = state_data[0][j]
+
+        rep_dict = dict((k, v)
+                        for k, v in d.items() if v >= self.min_rep_count)
+
+        return rep_dict, rep_to_state
 
     def _encode_one_batch(self, data_batch):
         x, _ = data_batch
         x = torch.tensor(x).float().to(self.device)
-        x = x.to(self.device)
+
         vq_encoder_output = self.model.pre_quantization_conv(
             self.model.encoder(x))
         _, z_q, _, _, e_indices = self.model.vector_quantization(
@@ -120,9 +136,13 @@ class RepresentationGraph:
         x_recon = self.model.decoder(z_q)
         return x, x_recon, z_q, e_indices
 
-    def _build_graph(self):
+    def _build_graph(self, min_rep_count=-1):
 
-        self.graph = {k: set([]) for k in self.rep_dict.keys()}
+        rep_dict = dict((k, v)
+                        for k, v in self.rep_dict.items() if v >= min_rep_count)
+
+        graph = {k: set([]) for k in rep_dict.keys()}
+
         # iterate over all data
 
         for i, data in tqdm(enumerate(iter(self.train_loader_over_paths))):
@@ -136,11 +156,32 @@ class RepresentationGraph:
             for i in range(n):
                 k = e_indices[64*i:64*i+64].squeeze().cpu().detach().numpy()
                 hash_ = hash(tuple(k))
-                if hash_ != last_hash_:
-                    self.graph[last_hash_].add(hash_)
+                if hash_ != last_hash_ and hash_ in rep_dict and last_hash_ in rep_dict:
+                    graph[last_hash_].add(hash_)
+
+        return graph
+
+    def return_shortest_path(self, graph, start, end):
+
+        queue = [(start, [start])]
+        visited = set()
+
+        while queue:
+            vertex, path = queue.pop(0)
+            visited.add(vertex)
+            for node in graph[vertex]:
+                if node == end:
+                    return path + [end]
+                else:
+                    if node not in visited:
+                        visited.add(node)
+                        queue.append((node, path + [node]))
+
+        #print('no path between',start,'and',end)
+        return False
 
 
 if __name__ == "__main__":
     graph = RepresentationGraph()
     print('N reps', len(graph.rep_dict.keys()))
-    print('Total count', np.sum(graph.rep_dict.values()), '/ 20,000')
+    print('Total count', np.sum(list(graph.rep_dict.values())), '/ 2,000,000')

@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import time
 import os
 from datasets.block import BlockDataset, LatentBlockDataset
-from datasets.base import ImageDataset
+from datasets.base import ImageDataset, StateDataset
 
 import numpy as np
 
@@ -48,24 +48,28 @@ def load_block():
     return train, val
 
 
-def load_point_mass():
-    data_folder_path = os.getcwd()
-    data_file_path = data_folder_path + \
-        '/data/point_mass_length100_paths_2000.npy'
+def load_point_mass(data_file_path=None, state_version=False):
 
-    train = ImageDataset(data_file_path, train=True,
-                         transform=transforms.Compose([
-                             transforms.ToTensor(),
-                             transforms.Normalize(
-                                 (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                         ]))
+    if data_file_path is None:
+        raise ValueError('Please provide a data_file_path input string')
 
-    val = ImageDataset(data_file_path, train=False,
-                       transform=transforms.Compose([
-                           transforms.ToTensor(),
-                           transforms.Normalize(
-                               (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                       ]))
+    if state_version:
+        train = StateDataset(data_file_path, train=True)
+        val = StateDataset(data_file_path, train=False)
+    else:
+        train = ImageDataset(data_file_path, train=True,
+                             transform=transforms.Compose([
+                                 transforms.ToTensor(),
+                                 transforms.Normalize(
+                                     (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                             ]))
+
+        val = ImageDataset(data_file_path, train=False,
+                           transform=transforms.Compose([
+                               transforms.ToTensor(),
+                               transforms.Normalize(
+                                   (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                           ]))
     return train, val
 
 
@@ -82,41 +86,41 @@ def load_latent_block():
     return train, val
 
 
-def data_loaders(train_data, val_data, batch_size):
+def data_loaders(train_data, val_data, batch_size, shuffle=True):
 
     train_loader = DataLoader(train_data,
                               batch_size=batch_size,
-                              shuffle=True,
+                              shuffle=shuffle,
                               pin_memory=True)
     val_loader = DataLoader(val_data,
                             batch_size=batch_size,
-                            shuffle=True,
+                            shuffle=shuffle,
                             pin_memory=True)
     return train_loader, val_loader
 
 
-def load_data_and_data_loaders(dataset, batch_size):
-    if dataset == 'CIFAR10':
+def load_data_and_data_loaders(dataset_name, data_file_path, batch_size):
+    if dataset_name == 'CIFAR10':
         training_data, validation_data = load_cifar()
         training_loader, validation_loader = data_loaders(
             training_data, validation_data, batch_size)
         x_train_var = np.var(training_data.train_data / 255.0)
 
-    elif dataset == 'BLOCK':
+    elif dataset_name == 'BLOCK':
         training_data, validation_data = load_block()
         training_loader, validation_loader = data_loaders(
             training_data, validation_data, batch_size)
 
         x_train_var = np.var(training_data.data / 255.0)
-    elif dataset == 'LATENT_BLOCK':
+    elif dataset_name == 'LATENT_BLOCK':
         training_data, validation_data = load_latent_block()
         training_loader, validation_loader = data_loaders(
             training_data, validation_data, batch_size)
 
         x_train_var = np.var(training_data.data)
 
-    elif dataset == 'POINTMASS':
-        training_data, validation_data = load_point_mass()
+    elif dataset_name == 'POINTMASS':
+        training_data, validation_data = load_point_mass(data_file_path)
         training_loader, validation_loader = data_loaders(
             training_data, validation_data, batch_size)
 
@@ -144,3 +148,23 @@ def save_model_and_results(model, results, hyperparameters, saved_name):
     }
     torch.save(results_to_save,
                SAVE_MODEL_PATH + saved_name)
+
+
+def return_shortest_path(graph, start, end):
+
+    queue = [(start, [start])]
+    visited = set()
+
+    while queue:
+        vertex, path = queue.pop(0)
+        visited.add(vertex)
+        for node in graph[vertex]:
+            if node == end:
+                return path + [end]
+            else:
+                if node not in visited:
+                    visited.add(node)
+                    queue.append((node, path + [node]))
+
+    #print('no path between',start,'and',end)
+    return False
