@@ -10,7 +10,7 @@ To install dependencies, create a conda or virtual environment with Python 3 and
 
 ## Running the VQ VAE
 
-To run the VQ-VAE simply run `python3 main.py`. You can also add parameters in the command line. The default values are specified below:
+To run the VQ-VAE simply run `python3 main.py`. Make sure to include the `-save` flag if you want to save your model. You can also add parameters in the command line. The default values are specified below:
 
 ```python
 parser.add_argument("--batch_size", type=int, default=32)
