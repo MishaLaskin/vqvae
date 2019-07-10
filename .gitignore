@@ -6,3 +6,4 @@ playground*
 results/
 .ipynb_checkpoints/
 samples/
+*nohup.out

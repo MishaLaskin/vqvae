@@ -28,9 +28,9 @@ parser.add_argument("--dataset",  type=str, default='POINTMASS')
 
 # whether or not to save model
 parser.add_argument("-save", action="store_true")
-parser.add_argument("--filename",  type=str, default='point_mass_jul2')
+parser.add_argument("--filename",  type=str, default='point_mass_jul3')
 parser.add_argument("--data_file_path", type=str,
-                    default='/home/misha/downloads/vqvae/data/point_mass_length100_paths_200.npy')
+                    default='/home/misha/downloads/vqvae/data/point_mass_length100_paths_2000.npy')
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

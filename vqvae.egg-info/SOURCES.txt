@@ -1,0 +1,8 @@
+README.md
+setup.py
+vqvae/main.py
+vqvae/utils.py
+vqvae.egg-info/PKG-INFO
+vqvae.egg-info/SOURCES.txt
+vqvae.egg-info/dependency_links.txt
+vqvae.egg-info/top_level.txt

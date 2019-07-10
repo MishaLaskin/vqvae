@@ -54,7 +54,7 @@ class RepresentationGraph:
         self._load_data()
         self._load_state_data()
         print('encoding data into latent representations')
-        self.rep_dict, self.rep_to_state = self._encode_data()
+        self.rep_dict, self.rep_to_state, self.hash_to_rep = self._encode_data()
         print('building representation transition graph')
         self.graph = self._build_graph()
 
@@ -101,6 +101,7 @@ class RepresentationGraph:
 
         d = {}
         rep_to_state = {}
+        hash_to_rep = {}
         # iterate over all data - state and image data are ordered in the same way
 
         for i, (data, state_data) in tqdm(enumerate(iter(zip(self.train_loader, self.state_train_loader)))):
@@ -119,10 +120,13 @@ class RepresentationGraph:
                 if hash_ not in rep_to_state:
                     rep_to_state[hash_] = state_data[0][j]
 
+                if hash_ not in hash_to_rep:
+                    hash_to_rep[hash_] = k
+
         rep_dict = dict((k, v)
                         for k, v in d.items() if v >= self.min_rep_count)
 
-        return rep_dict, rep_to_state
+        return rep_dict, rep_to_state, hash_to_rep
 
     def _encode_one_batch(self, data_batch):
         x, _ = data_batch
@@ -179,6 +183,25 @@ class RepresentationGraph:
 
         #print('no path between',start,'and',end)
         return False
+
+
+def return_shortest_path(graph, start, end):
+
+    queue = [(start, [start])]
+    visited = set()
+
+    while queue:
+        vertex, path = queue.pop(0)
+        visited.add(vertex)
+        for node in graph[vertex]:
+            if node == end:
+                return path + [end]
+            else:
+                if node not in visited:
+                    visited.add(node)
+                    queue.append((node, path + [node]))
+
+    return False
 
 
 if __name__ == "__main__":
