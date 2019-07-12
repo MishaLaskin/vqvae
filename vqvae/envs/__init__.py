@@ -1,2 +1,3 @@
-from vqvae.envs.point_mass import DMPointMassEnv, DMGoalPointMassEnv, DMImageGoalPointMassEnv
-from vqvae.envs.point_mass_vqvae import DMImageGoalPointMassEnvWithVQVAE
+from .point_mass import DMPointMassEnv, DMGoalPointMassEnv, DMImageGoalPointMassEnv
+from .point_mass_vqvae import DMImageGoalPointMassEnvWithVQVAE
+from .utils import BaseEnv, GoalBaseEnv

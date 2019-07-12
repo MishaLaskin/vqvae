@@ -4,7 +4,7 @@ from gym.spaces import Box, Dict
 import os
 import torch
 from vqvae.models.vqvae import VQVAE
-from rlkit.envs.dm.point_mass import DMImageGoalPointMassEnv, DMPointMassEnv
+from .point_mass import DMImageGoalPointMassEnv, DMPointMassEnv
 from vqvae.planner import RepresentationGraph, return_shortest_path
 import numpy as np
 from vqvae import utils
