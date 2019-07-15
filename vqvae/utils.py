@@ -48,7 +48,7 @@ def load_block():
     return train, val
 
 
-def load_point_mass(data_file_path=None, state_version=False):
+def load_point_mass(data_file_path=None, state_version=False, make_temporal=False):
 
     if data_file_path is None:
         raise ValueError('Please provide a data_file_path input string')
@@ -57,14 +57,14 @@ def load_point_mass(data_file_path=None, state_version=False):
         train = StateDataset(data_file_path, train=True)
         val = StateDataset(data_file_path, train=False)
     else:
-        train = ImageDataset(data_file_path, train=True,
+        train = ImageDataset(data_file_path, train=True, make_temporal=make_temporal,
                              transform=transforms.Compose([
                                  transforms.ToTensor(),
                                  transforms.Normalize(
                                      (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                              ]))
 
-        val = ImageDataset(data_file_path, train=False,
+        val = ImageDataset(data_file_path, train=False, make_temporal=False,
                            transform=transforms.Compose([
                                transforms.ToTensor(),
                                transforms.Normalize(
@@ -99,7 +99,7 @@ def data_loaders(train_data, val_data, batch_size, shuffle=True):
     return train_loader, val_loader
 
 
-def load_data_and_data_loaders(dataset_name, data_file_path, batch_size):
+def load_data_and_data_loaders(dataset_name, data_file_path, batch_size, make_temporal=False):
     if dataset_name == 'CIFAR10':
         training_data, validation_data = load_cifar()
         training_loader, validation_loader = data_loaders(
@@ -120,7 +120,8 @@ def load_data_and_data_loaders(dataset_name, data_file_path, batch_size):
         x_train_var = np.var(training_data.data)
 
     elif dataset_name == 'POINTMASS':
-        training_data, validation_data = load_point_mass(data_file_path)
+        training_data, validation_data = load_point_mass(
+            data_file_path, make_temporal=make_temporal)
         training_loader, validation_loader = data_loaders(
             training_data, validation_data, batch_size)
 
@@ -128,8 +129,7 @@ def load_data_and_data_loaders(dataset_name, data_file_path, batch_size):
 
     else:
         raise ValueError(
-            'Invalid dataset: only CIFAR10 and BLOCK datasets are supported.')
-
+            'InvalFalseid dataset: only CIFAR10 and BLOCK datasets are supported.')
     return training_data, validation_data, training_loader, validation_loader, x_train_var
 
 
