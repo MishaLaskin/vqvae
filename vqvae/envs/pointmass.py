@@ -65,27 +65,47 @@ class EasyPointmassVQVAE(VQVAEEnv):
         return goal_img
 
     def normalize_image(self, img):
+        """normalizes image to [0,1] interval 
+
+        Arguments:
+            img {np.array or torch.tensor} -- [an image array / tensor with integer values 0-255]
+
+        Returns:
+            [np.array or torch tensor] -- [an image array / tensor with float values in [0,1] interval]
+        """
         img /= 255.0
         img += 0.5
         img /= 0.5
         return img
 
     def reset(self):
-        #goal_img = self.reset_goal_image()
+        # generate goal, encode it, get continuous and discrete values
+        self.encoded_goal, self.goal_indices = self.encode_observation(
+            is_goal=True)
+        # reset env
         super().reset()
-        goal_img = self.get_current_image()
-        self.goal_img = goal_img
-        goal_img = self.numpy_to_tensor_img(goal_img)
-        goal_img = self.normalize_image(goal_img)
-        self.encoded_goal = self.encode_image(goal_img)
-        super().reset()
-        img = self.get_current_image()
+        # get observation encoding
+        z_e, e_indices = self.encode_observation(is_goal=False)
+
+        return z_e.reshape(-1)
+
+    def encode_observation(self, is_goal=False, include_indices=False):
+        if is_goal:
+            img = self.reset_goal_image()
+            self.goal_img = goal_img
+        else:
+            img = self.get_current_image()
+
         img = self.numpy_to_tensor_img(img)
         img = self.normalize_image(img)
 
         z_e = self.encode_image(img)
 
-        return z_e.reshape(-1)
+        if include_indices:
+            _, _, _, _, e_indices = model.vector_quantization(z_e)
+            return z_e, e_indices
+
+        return z_e, None
 
     def _get_pointmass_and_target_pos(self):
         target_pos = self.dm_env.physics.named.data.geom_xpos['target']
@@ -98,10 +118,7 @@ class EasyPointmassVQVAE(VQVAEEnv):
     def step(self, action):
         self.steps += 1
         _, r, d, info = super().step(action)
-        img = self.get_current_image()
-        img = self.numpy_to_tensor_img(img)
-        img = self.normalize_image(img)
-        z = self.encode_image(img)
+        z, e_indices = self.encode_observation(is_goal=False)
 
         r = self.compute_reward(action, z)
         info['is_success'] = self.is_success(z)
