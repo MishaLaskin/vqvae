@@ -67,6 +67,61 @@ class BaseEnv:
         return self.physics().render(**render_kwargs)
 
 
+class GoalBaseEnv(BaseEnv):
+
+    def __init__(self,
+                 env_name=None, mode=None,
+                 obs_dim=None, act_dim=None, goal_dim=None,
+                 **kwargs):
+
+        super().__init__(env_name, mode, obs_dim=obs_dim,
+                         act_dim=act_dim, **kwargs)
+
+        if goal_dim is None:
+            goal_dim = self.observation_space.shape[0]
+
+        goal_space = Box(
+            high=float("inf"), low=-float("inf"),
+            shape=(goal_dim,)
+        )
+
+        flat_obs_space = self.observation_space
+
+        self.observation_space = Dict([
+            ('observation', flat_obs_space),
+            ('desired_goal', goal_space),
+            ('achieved_goal', goal_space),
+            ('state_observation', flat_obs_space),
+            ('state_desired_goal', goal_space),
+            ('state_achieved_goal', goal_space),
+        ])
+
+    def step(self, a):
+        obs_dict = self.step_and_get_obs_dict(a)
+        reward = self.compute_reward(a, obs_dict)
+        done, is_success = self.is_done(obs_dict)
+        info = {
+            'is_success': is_success
+        }
+        self.update_internal_state()
+        return obs_dict, reward, done, info
+
+    def reset(self):
+        raise NotImplementedError
+
+    def update_internal_state(self):
+        raise NotImplementedError
+
+    def compute_reward(self, action, obs_dict, *args, **kwargs):
+        raise NotImplementedError
+
+    def step_and_get_obs_dict(self, a):
+        raise NotImplementedError
+
+    def is_done(self, obs_dict):
+        raise NotImplementedError
+
+
 class VQVAEEnv(BaseEnv):
     def __init__(self,
                  env_name, mode,
@@ -98,10 +153,12 @@ class VQVAEEnv(BaseEnv):
         z_e = self.encode_image(img)
         return z_e
 
-    def encode_image(self, img):
+    def encode_image(self, img, as_tensor=False):
         z_e = self.model.pre_quantization_conv(
-            self.model.encoder(img)).detach().cpu().numpy()
-        return z_e
+            self.model.encoder(img))
+        if as_tensor:
+            return z_e
+        return z_e.detach().cpu().numpy()
 
     def get_current_image(self):
         img = self.render(width=self.img_dim,
@@ -118,50 +175,47 @@ class VQVAEEnv(BaseEnv):
         return img.permute(0, 3, 1, 2)
 
 
-class GoalBaseEnv(BaseEnv):
+class GoalVQVAEEnv(GoalBaseEnv):
 
     def __init__(self,
-                 env_name, mode,
-                 object, target,
+                 env_name=None, mode=None,
                  obs_dim=None, act_dim=None, goal_dim=None,
-                 **kwargs):
+                 model_path=None,
+                 img_dim=32,
+                 camera_id=0,
+                 gpu_id=0, **kwargs):
+        super().__init__(env_name=env_name, mode=mode, obs_dim=obs_dim,
+                         act_dim=act_dim, goal_dim=goal_dim, **kwargs)
 
-        BaseEnv.__init__(self, env_name, mode, obs_dim=obs_dim,
-                         act_dim=act_dim, **kwargs)
+        assert model_path is not None, 'Must specify model path'
+        self.device = torch.device("cuda:"+str(gpu_id)
+                                   if torch.cuda.is_available() else "cpu")
 
-        self.object = object
-        self.target = target
+        self.model, self.model_params = load_model(
+            model_path, gpu_id, self.device)
+        self.img_dim = img_dim
+        self.camera_id = 0
 
-        if goal_dim is None:
-            goal_dim = self.observation_space.shape[0]
+    def encode_image(self, img, as_tensor=False):
+        z_e = self.model.pre_quantization_conv(
+            self.model.encoder(img))
+        if as_tensor:
+            return z_e
+        return z_e.detach().cpu().numpy()
 
-        goal_space = Box(
-            high=float("inf"), low=-float("inf"),
-            shape=(goal_dim,)
-        )
+    def get_current_image(self):
+        img = self.render(width=self.img_dim,
+                          height=self.img_dim, camera_id=self.camera_id)
+        img = img.reshape(1, *img.shape)
+        return img
 
-        og_obs_space = self.observation_space
+    def get_goal_image(self):
+        raise NotImplementedError
 
-        self.observation_space = Dict([
-            ('observation', og_obs_space),
-            ('desired_goal', goal_space),
-            ('achieved_goal', goal_space),
-            ('state_observation', og_obs_space),
-            ('state_desired_goal', goal_space),
-            ('state_achieved_goal', goal_space),
-        ])
-
-    def reset(self):
-        obs = super().reset()
-        obs_dict = _obs_to_ground_truth_dict(
-            obs, self.dm_env.physics, self.object, self.target)
-        return obs_dict
-
-    def step(self, a):
-        obs, reward, done, info = super().step(a)
-        obs_dict = _obs_to_ground_truth_dict(
-            obs, self.dm_env.physics, self.object, self.target)
-        return obs_dict, reward, done, info
+    def numpy_to_tensor_img(self, img):
+        img = np.ascontiguousarray(img)
+        img = torch.from_numpy(img).float().to(self.device)
+        return img.permute(0, 3, 1, 2)
 
 
 def _has_attr(obj, name):
