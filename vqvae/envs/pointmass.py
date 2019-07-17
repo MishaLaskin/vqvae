@@ -301,6 +301,7 @@ class GoalPointmassVQVAE(GoalVQVAEEnv):
                  rep_type='continuous',
                  max_steps=500,
                  threshold=0.05,
+                 explore=False,
                  **kwargs):
         # be sure to specify obs dim and goal dim
 
@@ -319,6 +320,8 @@ class GoalPointmassVQVAE(GoalVQVAEEnv):
         self.rep_type = rep_type
         self.current_rep = None
         self.last_rep = None
+        self.explore = explore
+        self.rep_counts = {}
 
     def compute_reward(self, action, obs, *args, **kwargs):
         # abstract method only cares about obs and threshold
@@ -327,8 +330,16 @@ class GoalPointmassVQVAE(GoalVQVAEEnv):
 
         if self.reward_type == 'sparse':
             r = -1.0 if distance > self.threshold else 0.0
-        elif self.reward_type == 'dense':
-            r = -distance
+        elif self.reward_type == 'sparse_exploration':
+            r_sparse = -1.0 if distance > self.threshold else 1.0
+            rep_hash = obs['state_achieved_goal']
+            if rep_hash not in self.rep_counts:
+                raise ValueError(
+                    'representation must be in buffer, check code for bugs')
+
+            n = self.rep_counts[rep_hash]
+            bonus = 1/np.sqrt(n)
+            r = r_sparse + .5*bonus
         else:
             raise_error(err_type='reward')
 
@@ -341,8 +352,8 @@ class GoalPointmassVQVAE(GoalVQVAEEnv):
         distances = np.linalg.norm(achieved_goals - desired_goals, axis=1)
         if self.reward_type == 'sparse':
             r = -(distances > self.threshold).astype(float)
-        elif self.reward_type == 'dense':
-            r = - distances.astype(float)
+        elif self.reward_type == 'sparse_exploration':
+            r = -2.0*(distances > self.threshold).astype(float)+1.0
         else:
             raise_error(err_type='reward')
         return r
@@ -402,14 +413,16 @@ class GoalPointmassVQVAE(GoalVQVAEEnv):
         z_e, e_indices = self.encode_observation(
             is_goal=False, include_indices=True)
 
-        achieved_goal = z_e
+        rep_hash = hash(tuple(e_indices))
 
-        self.update_internal_state(e_indices)
+        self.update_internal_state(rep_hash)
+
         obs_dict = self.construct_obs_dict(
-            z_e, achieved_goal, self.encoded_goal)
+            z_e, z_e, self.encoded_goal, rep_hash, self.goal_rep_hash)
+
         return obs_dict
 
-    def encode_observation(self, is_goal=False, include_indices=False):
+    def encode_observation(self, is_goal=False, include_indices=True):
         if is_goal:
             img = self.reset_goal_image()
             self.goal_img = img
@@ -463,41 +476,48 @@ class GoalPointmassVQVAE(GoalVQVAEEnv):
         # generate goal, encode it, get continuous and discrete values
         self.encoded_goal, self.goal_indices = self.encode_observation(
             is_goal=True, include_indices=True)
+        self.goal_rep_hash = hash(tuple(self.goal_indices))
         # reset env
         self.dm_env.reset()
         # get observation encoding
         z_e, e_indices = self.encode_observation(
             is_goal=False, include_indices=True)
 
-        self.update_internal_state(e_indices, reset=True)
+        rep_hash = hash(tuple(e_indices))
 
-        obs_dict = self.construct_obs_dict(z_e, z_e, self.encoded_goal)
+        self.update_internal_state(rep_hash, reset=True)
+
+        obs_dict = self.construct_obs_dict(
+            z_e, z_e, self.encoded_goal, rep_hash, self.goal_rep_hash)
 
         return obs_dict
 
-    def update_internal_state(self, e_indices, reset=False):
+    def update_internal_state(self, rep_hash, reset=False):
         if reset:
             self.steps = 0
             self.visited_reps = set()
-            rep_hash = hash(tuple(e_indices))
             self.visited_reps.add(rep_hash)
             self.current_rep = rep_hash
             self.last_rep = 0
         else:
             self.steps += 1
-            rep_hash = hash(tuple(e_indices))
             self.visited_reps.add(rep_hash)
             self.last_rep = self.current_rep
             self.current_rep = rep_hash
+        # increment count in rep_counts
+        if rep_hash in self.rep_counts:
+            self.rep_counts[rep_hash] += 1
+        else:
+            self.rep_counts[rep_hash] = 1
 
-    def construct_obs_dict(self, flat_obs, achieved_goal, desired_goal):
+    def construct_obs_dict(self, obs, achieved_goal, desired_goal, achieved_rep_hash, desired_rep_hash):
         obs_dict = dict(
-            observation=flat_obs,
-            state_observation=flat_obs,
+            observation=obs,
+            state_observation=obs,
             achieved_goal=achieved_goal,
-            state_achieved_goal=achieved_goal,
+            state_achieved_goal=achieved_rep_hash,
             desired_goal=desired_goal,
-            state_desired_goal=desired_goal
+            state_desired_goal=desired_rep_hash
         )
         return obs_dict
 
