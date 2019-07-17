@@ -156,7 +156,7 @@ class EasyPointmassVQVAE(VQVAEEnv):
         _, desired_goal = self._get_pointmass_and_target_pos()
         # some small amount of noise to generate realistic goal
         # scenarios
-        noise = np.random.randn(3)*0.01
+        noise = 0.02 + np.random.randn(3)*0.015
         noise[-1] = 0.0
         # sets goal state
         self.dm_env.physics.named.data.geom_xpos['pointmass'] = desired_goal + noise
@@ -226,8 +226,6 @@ class EasyPointmassVQVAE(VQVAEEnv):
         img = self.numpy_to_tensor_img(img)
         img = self.normalize_image(img)
 
-
-normalize_image
         z_e = self.encode_image(img, as_tensor=True)
 
         if include_indices:
