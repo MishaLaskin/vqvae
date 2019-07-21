@@ -15,7 +15,7 @@ Hyperparameters
 timestamp = utils.readable_timestamp()
 
 parser.add_argument("--batch_size", type=int, default=64)
-parser.add_argument("--n_updates", type=int, default=15000)
+parser.add_argument("--n_updates", type=int, default=60000)
 parser.add_argument("--n_hiddens", type=int, default=128)
 parser.add_argument("--n_residual_hiddens", type=int, default=32)
 parser.add_argument("--n_residual_layers", type=int, default=2)
@@ -24,14 +24,14 @@ parser.add_argument("--n_embeddings", type=int, default=8)
 parser.add_argument("--beta", type=float, default=.25)
 parser.add_argument("--learning_rate", type=float, default=3e-4)
 parser.add_argument("--log_interval", type=int, default=100)
-parser.add_argument("--dataset",  type=str, default='POINTMASS')
+parser.add_argument("--dataset",  type=str, default='REACHER')
 
 # whether or not to save model
 parser.add_argument("-save", action="store_true")
 parser.add_argument("-temporal", action="store_true")
-parser.add_argument("--filename",  type=str, default='point_mass_jul3')
+parser.add_argument("--filename",  type=str, default='reacher_no_target_jul17')
 parser.add_argument("--data_file_path", type=str,
-                    default='/home/misha/research/vqvae/data/point_mass_length100_paths_2000.npy')
+                    default='/home/misha/research/vqvae/data/reacher_no_target_length100_paths_2000.npy')
 args = parser.parse_args()
 
 

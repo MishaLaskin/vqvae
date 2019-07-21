@@ -48,7 +48,7 @@ def load_block():
     return train, val
 
 
-def load_point_mass(data_file_path=None, state_version=False, make_temporal=False):
+def load_dm_data(data_file_path=None, state_version=False, make_temporal=False):
 
     if data_file_path is None:
         raise ValueError('Please provide a data_file_path input string')
@@ -119,8 +119,9 @@ def load_data_and_data_loaders(dataset_name, data_file_path, batch_size, make_te
 
         x_train_var = np.var(training_data.data)
 
-    elif dataset_name == 'POINTMASS':
-        training_data, validation_data = load_point_mass(
+    # DM stands from dm_control library of envs
+    elif dataset_name == 'POINTMASS' or dataset_name == 'REACHER':
+        training_data, validation_data = load_dm_data(
             data_file_path, make_temporal=make_temporal)
         training_loader, validation_loader = data_loaders(
             training_data, validation_data, batch_size)

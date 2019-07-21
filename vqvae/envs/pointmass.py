@@ -397,7 +397,8 @@ class GoalPointmassVQVAE(GoalVQVAEEnv):
         info = {
             'is_success': is_success,
             'num_reps': len(self.visited_reps),
-            'latent_distance': np.linalg.norm(obs_dict['achieved_goal'] - obs_dict['desired_goal'])
+            'latent_distance': np.linalg.norm(obs_dict['achieved_goal'] - obs_dict['desired_goal']),
+            'rep_counts': len(self.rep_counts.keys())
         }
 
         return obs_dict, reward, done, info
