@@ -6,8 +6,33 @@ import time
 import os
 from datasets.block import BlockDataset, LatentBlockDataset
 from datasets.base import ImageDataset, StateDataset
-
+from vqvae.models.vqvae import VQVAE, TemporalVQVAE
 import numpy as np
+
+
+def load_model(model_filename, temporal=False):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if torch.cuda.is_available():
+        data = torch.load(model_filename)
+    else:
+        data = torch.load(
+            model_filename, map_location=lambda storage, loc: storage)
+
+    params = data["hyperparameters"]
+
+    if temporal:
+        model = TemporalVQVAE(params['n_hiddens'], params['n_residual_hiddens'],
+                              params['n_residual_layers'], params['n_embeddings'],
+                              params['embedding_dim'], params['beta']).to(device)
+    else:
+        model = VQVAE(params['n_hiddens'], params['n_residual_hiddens'],
+                      params['n_residual_layers'], params['n_embeddings'],
+                      params['embedding_dim'], params['beta']).to(device)
+
+    model.load_state_dict(data['model'])
+
+    return model, data
 
 
 def load_cifar():
@@ -120,7 +145,7 @@ def load_data_and_data_loaders(dataset_name, data_file_path, batch_size, make_te
         x_train_var = np.var(training_data.data)
 
     # DM stands from dm_control library of envs
-    elif dataset_name == 'POINTMASS' or dataset_name == 'REACHER':
+    elif dataset_name == 'POINTMASS' or dataset_name == 'REACHER' or dataset_name == 'PUSHER':
         training_data, validation_data = load_dm_data(
             data_file_path, make_temporal=make_temporal)
         training_loader, validation_loader = data_loaders(

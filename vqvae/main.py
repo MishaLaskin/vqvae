@@ -14,8 +14,8 @@ Hyperparameters
 """
 timestamp = utils.readable_timestamp()
 
-parser.add_argument("--batch_size", type=int, default=64)
-parser.add_argument("--n_updates", type=int, default=60000)
+parser.add_argument("--batch_size", type=int, default=128)
+parser.add_argument("--n_updates", type=int, default=int(1e5))
 parser.add_argument("--n_hiddens", type=int, default=128)
 parser.add_argument("--n_residual_hiddens", type=int, default=32)
 parser.add_argument("--n_residual_layers", type=int, default=2)
@@ -24,14 +24,14 @@ parser.add_argument("--n_embeddings", type=int, default=8)
 parser.add_argument("--beta", type=float, default=.25)
 parser.add_argument("--learning_rate", type=float, default=3e-4)
 parser.add_argument("--log_interval", type=int, default=100)
-parser.add_argument("--dataset",  type=str, default='REACHER')
+parser.add_argument("--dataset",  type=str, default='PUSHER')
 
 # whether or not to save model
 parser.add_argument("-save", action="store_true")
 parser.add_argument("-temporal", action="store_true")
-parser.add_argument("--filename",  type=str, default='reacher_no_target_jul17')
+parser.add_argument("--filename",  type=str, default='pusher_no_target_jul21')
 parser.add_argument("--data_file_path", type=str,
-                    default='/home/misha/research/vqvae/data/reacher_no_target_length100_paths_2000.npy')
+                    default='/home/misha/research/vqvae/data/pusher_no_target_length100_paths_1000.npy')
 args = parser.parse_args()
 
 
@@ -93,7 +93,7 @@ def train_vqvae():
         optimizer.zero_grad()
 
         embedding_loss, x_hat, perplexity = model(x)
-        recon_loss = 40.0 * torch.mean((x_hat - x)**2) / x_train_var
+        recon_loss = 100.0 * torch.mean((x_hat - x)**2) / x_train_var
         loss = recon_loss + embedding_loss
 
         loss.backward()
