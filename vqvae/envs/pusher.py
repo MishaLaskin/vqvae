@@ -283,6 +283,7 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
                  rep_type='continuous',
                  max_steps=500,
                  threshold=0.05,
+                 e_index_dim=8.0,
                  explore=False,
                  **kwargs):
         # be sure to specify obs dim and goal dim
@@ -295,6 +296,7 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
                          gpu_id=gpu_id)
 
         self.threshold = threshold
+        self.e_index_dim = e_index_dim
         self.max_steps = max_steps
         self.steps = 0
         self.reward_type = reward_type
@@ -406,7 +408,7 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
 
         return obs_dict
 
-    def encode_observation(self, is_goal=False, include_indices=True):
+    def encode_observation(self, is_goal=False, include_indices=True, normalize_e=False):
         if is_goal:
             img = self.reset_goal_image()
             self.goal_img = img
@@ -420,8 +422,11 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
 
         if include_indices:
             _, _, _, _, e_indices = self.model.vector_quantization(z_e)
-            e_indices = self.normalize_indices(
-                e_indices).detach().cpu().numpy()
+            if normalize_e:
+                e_indices = self.normalize_indices(
+                    e_indices).detach().cpu().numpy()
+            else:
+                e_indices = e_indices.detach().cpu().numpy()
             return z_e.reshape(-1).detach().cpu().numpy(), e_indices.reshape(-1)
 
         return z_e.reshape(-1).detach().cpu().numpy(), None
@@ -492,6 +497,8 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
         goal_img = goal_img.reshape(1, *goal_img.shape)
 
         # reset to get different starting image
+        #left_curriculum = [[-.35,.25],[-.35,-.15],[-.35,-.05],[-.35,0.05],[-.35,]]
+        #right_curriculum = [[]]
         stationary_reset(self.dm_env)
         starting_box_pos = np.random.uniform(-.37, .37)
         set_pusher_qpos(self.dm_env, box0_x=starting_box_pos)
@@ -559,9 +566,9 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
         return img
 
     def normalize_indices(self, x):
-        assert max(x) <= 511.0, 'index mismatch during normalization'
+        assert max(x) < self.e_index_dim, 'index mismatch during normalization'
         x = x.float()
-        x /= 7.0
+        x /= self.e_index_dim-1
         x -= 0.5
         x /= 0.5
         return x
