@@ -1,6 +1,7 @@
 from .utils import GoalBaseEnv, BaseEnv, L2_norm, GoalVQVAEEnv
 import numpy as np
 from .utils import _ts_to_obs
+import time
 
 
 class EasyPusher(BaseEnv):
@@ -165,10 +166,13 @@ class GoalPusherNoTarget(GoalBaseEnv):
                  threshold=0.05,
                  reward_type='sparse',
                  img_dim=32,
-                 camera_id=0
+                 camera_id=0,
+                 obs_dim=42,
+                 goal_dim=3
                  ):
 
-        super().__init__(env_name='stacker', mode='push_1', goal_dim=3)
+        super().__init__(env_name='stacker', mode='push_1',
+                         goal_dim=goal_dim, obs_dim=obs_dim)
         self.threshold = threshold
         self.max_steps = max_steps
         self.steps = 0
@@ -225,6 +229,11 @@ class GoalPusherNoTarget(GoalBaseEnv):
         return obs_dict
 
     def reset(self):
+        obs_dict, desired_goal = stationary_easy_reset(self.dm_env)
+        self.desired_goal = desired_goal
+        return obs_dict
+
+    def old_reset(self):
 
         flat_obs = stationary_reset(self.dm_env)
         self.desired_goal = self.get_desired_goal(reset=True)
@@ -386,10 +395,11 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
         # 1. step forward with action
         # 2. get image, encode it
 
-        _ = self.dm_env.step(action)
-
-        z_e, e_indices = self.encode_observation(
-            is_goal=False, include_indices=True)
+        ts = self.dm_env.step(action)
+        flat_obs = _ts_to_obs(ts)
+        flat_obs = np.append(
+            flat_obs, [self.state_desired_goal[0], self.state_desired_goal[2]])
+        z_e, e_indices = self.encode_observation(include_indices=True)
 
         rep_hash = hash(tuple(e_indices))
 
@@ -401,17 +411,16 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
             observation=z_e,
             achieved_goal=z_e,
             desired_goal=self.encoded_goal,
-            state_observation=box_pos,
+            state_observation=flat_obs,
             state_achieved_goal=box_pos,
             state_desired_goal=self.state_desired_goal
         )
 
         return obs_dict
 
-    def encode_observation(self, is_goal=False, include_indices=True, normalize_e=False):
-        if is_goal:
-            img = self.reset_goal_image()
-            self.goal_img = img
+    def encode_observation(self, goal_img=None, include_indices=True, normalize_e=False):
+        if goal_img is not None:
+            img = goal_img
         else:
             img = self.get_current_image()
 
@@ -433,13 +442,13 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
 
     def reset(self):
         # generate goal, encode it, get continuous and discrete values
+        self.goal_img, flat_obs = self.reset_goal_image()
         self.encoded_goal, self.goal_indices = self.encode_observation(
-            is_goal=True, include_indices=True)
+            goal_img=self.goal_img, include_indices=True)
         self.goal_rep_hash = hash(tuple(self.goal_indices))
         # don't reset env again, since that will generate target in different position
         # get observation encoding
-        z_e, e_indices = self.encode_observation(
-            is_goal=False, include_indices=True)
+        z_e, e_indices = self.encode_observation(include_indices=True)
 
         rep_hash = hash(tuple(e_indices))
 
@@ -451,7 +460,7 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
             observation=z_e,
             achieved_goal=z_e,
             desired_goal=self.encoded_goal,
-            state_observation=box_pos,
+            state_observation=flat_obs,
             state_achieved_goal=box_pos,
             state_desired_goal=self.state_desired_goal
         )
@@ -471,16 +480,17 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
         """
         # reset to get goal image
         # step 1
-        stationary_reset(self.dm_env)
+        flat_obs = stationary_reset(self.dm_env)
+        original_box_pos = get_xpos(self.dm_env, name='box0').copy()
         # step 2
         index = np.random.randint(2)
         ranges = [[-.37, -.3], [.3, .37]]
         range_ = ranges[index]
         box_pos = np.random.uniform(*range_)
         set_pusher_qpos(self.dm_env, box0_x=box_pos)
-        self.state_desired_goal = self.dm_env.physics.named.data.geom_xpos["box0"].copy(
-        )
-        # step 3
+        self.state_desired_goal = get_xpos(self.dm_env, name='box0').copy()
+
+        """
         set_arm_on_right = dict(
             arm_root=-1.6, arm_shoulder=-.5, arm_elbow=-1, arm_wrist=-1)
         set_arm_on_left = dict(
@@ -490,7 +500,7 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
             set_pusher_qpos(self.dm_env, **set_arm_on_right)
         else:
             set_pusher_qpos(self.dm_env, **set_arm_on_left)
-
+        """
         # step 4
         goal_img = self.dm_env.physics.render(
             self.img_dim, self.img_dim, camera_id=self.camera_id)
@@ -499,10 +509,18 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
         # reset to get different starting image
         #left_curriculum = [[-.35,.25],[-.35,-.15],[-.35,-.05],[-.35,0.05],[-.35,]]
         #right_curriculum = [[]]
+
+        # return to original state
+        set_pusher_qpos(self.dm_env, box0_x=original_box_pos[0])
+
+        flat_obs = np.append(
+            flat_obs, [self.state_desired_goal[0], self.state_desired_goal[2]])
+        """
         stationary_reset(self.dm_env)
         starting_box_pos = np.random.uniform(-.37, .37)
         set_pusher_qpos(self.dm_env, box0_x=starting_box_pos)
-        return goal_img
+        """
+        return goal_img, flat_obs
 
     def old_reset_goal_image(self):
         """
@@ -592,6 +610,9 @@ class GoalPusherNoTargetVQVAE(GoalVQVAEEnv):
             self.rep_counts[rep_hash] = 1
 
 
+
+
+
 """
 Utilities
 """
@@ -599,6 +620,79 @@ Utilities
 
 def rand_a(spec):
     return np.random.uniform(spec.minimum, spec.maximum, spec.shape)
+
+
+def dict_to_flat_arr(d):
+    flat_arrs = np.concatenate([np.array(v).reshape(-1)
+                                for v in list(d.values())]).reshape(-1)
+    return np.array([v for v in flat_arrs])
+
+
+def stationary_easy_reset(env,n_steps=10):
+    # first put in easy position
+    geom_xpos = env.physics.named.data.geom_xpos
+    physics = env.physics
+    data = env.physics.named.data
+    
+    start = time.time()
+    
+    while True:
+        ts = env.reset()
+        spec = env.action_spec()
+        f1 = geom_xpos['fingertip1'][-1]
+        f2 = geom_xpos['fingertip2'][-1]
+        t1= geom_xpos['thumbtip1'][-1]
+        t2= geom_xpos['thumbtip2'][-1]
+        fi1 = geom_xpos['finger1'][-1]
+        fi2 = geom_xpos['finger2'][-1]
+        ti1= geom_xpos['thumb1'][-1]
+        ti2= geom_xpos['thumb2'][-1]
+        parts = dict(fingertip1=f1,fingertip2=f2,thumbtip1=t1,thumbtip2=t2,thumb1=ti1,thumb2=ti2,finger1=fi1,finger2=fi2)
+        mean_part = np.mean(list(parts.values())).copy()
+        
+        epsilons = [0.2 for _ in range(len(parts.values()))]
+        if sum(np.less(list(parts.values()),epsilons)):
+            obj = list(parts.keys())[np.random.randint(len(parts.keys()))]
+            obj_pos = .5*(geom_xpos['thumbtip2'][0]+geom_xpos['fingertip2'][0]) #geom_xpos[obj][0]
+            x = obj_pos #+ np.random.uniform(.05,.1)*(np.random.randint(2)-1)
+            data.qpos['box0_x'] = x
+            data.qpos['box0_z'] = np.random.uniform(0.033,.05)
+            physics.after_reset()
+            penetrating = physics.data.ncon > 0
+            break
+            if not penetrating:
+                for _ in range(20):
+                    a = np.zeros(spec.shape)
+                    ts = env.step(a)
+                break
+                
+    
+    f1_x = geom_xpos['fingertip1'][0].copy()
+    box0_x = geom_xpos['box0'][0].copy()
+    
+    hand_on_right = f1_x > box0_x
+    
+    if hand_on_right:
+        x_goal = np.random.uniform(-.36,box0_x)
+    else:
+        x_goal = np.random.uniform(box0_x,.36)
+    
+    box_goal = np.array([x_goal,0.001,0.033])
+    box_pos = geom_xpos["box0"].copy()
+    ts_dict = ts.observation.copy()
+    ts_dict["box_pos"][0][:2] = [box_pos[0],box_pos[2]]
+    ts_dict['target'] = [box_goal[0],box_goal[2]]
+    flat_obs = dict_to_flat_arr(ts_dict)
+    
+    obs_dict = dict(
+        observation=flat_obs,
+        achieved_goal=box_pos,
+        desired_goal = box_goal,
+        state_observation=flat_obs,
+        state_achieved_goal=box_pos,
+        state_desired_goal = box_goal,
+    )
+    return obs_dict, box_goal
 
 
 def stationary_reset(env, n_steps=200):
