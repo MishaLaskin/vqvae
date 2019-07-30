@@ -399,7 +399,7 @@ class LatentGoalEnv:
                  env_name='stacker', task='push_1',
                  max_steps=100, reward_type='sparse', threshold=0.1,
                  render_kwargs=dict(width=64, height=64, camera_id=0),
-                 gpu_id=0
+                 gpu_id=0, easy_reset=False
 
                  ):
 
@@ -413,6 +413,7 @@ class LatentGoalEnv:
         self.box_size = self.model.geom_size['box0', 0]
         self.reward_type = reward_type
         self.render_kwargs = render_kwargs
+        self.easy_reset = easy_reset
         accepted_reward_types = ["dense", "sparse"]
         assert self.reward_type in accepted_reward_types, "Invalid reward type"
         self.threshold = threshold
@@ -445,8 +446,8 @@ class LatentGoalEnv:
             ('state_achieved_goal', goal_space)
         ])
 
-        model1_filename = '/home/misha/research/vqvae/results/vqvae_data_pusher_jul25_ne128nd2.pth'
-        model2_filename = '/home/misha/research/vqvae/results/vqvae_data_block_jul25_ne128nd2.pth'
+        model1_filename = '/home/misha/downloads/vqvae/results/vqvae_data_pusher_jul25_ne128nd2.pth'
+        model2_filename = '/home/misha/downloads/vqvae/results/vqvae_data_block_jul25_ne128nd2.pth'
 
         self.model1, _ = utils.load_model(
             model1_filename, temporal=False)
@@ -465,9 +466,14 @@ class LatentGoalEnv:
         if hand_pos[0] > box_pos[0]:
             goal_x = np.random.uniform(-.37,
                                        np.clip(box_pos[0]-0.05, -.33, .33))
+            if self.easy_reset:
+                goal_x = np.clip(box_pos[0] - np.random.uniform(2*0.033,.1+0.033),-.33,.33)
+
         else:
             goal_x = np.random.uniform(
                 np.clip(box_pos[0]+0.05, -.33, .33), .37)
+            if self.easy_reset:
+                goal_x = np.clip(box_pos[0] + np.random.uniform(2*0.033,.1+0.033),-.33,.33)
         self.goal = np.array([goal_x, 0.001, self.box_size])
         flat_obs = dict_to_flat_arr(ts.observation)
         flat_obs = np.append(flat_obs, [self.goal[0], self.goal[2]])
@@ -598,6 +604,50 @@ class RefBlockEnv:
     def step(self, a):
         return self.dm_env.step(a)
 
+class RefTwoBlocksEnv:
+
+    def __init__(self, env_name='blocks', task='stack_2', render_kwargs=dict(width=64, height=64, camera_id=0)):
+
+        self.dm_env = suite.load(env_name, task)
+        self.physics = self.dm_env.physics
+        self.model = self.physics.named.model
+        self.data = self.physics.named.data
+        self.box_size = self.model.geom_size['box0', 0]
+        self.render_kwargs = render_kwargs
+        self.red = np.array([246.,91.,75.])/255.
+        self.green = np.array([93.,205.,189.])/255.
+
+    def set_block_pos(self, box0=[None,None,None],box1=[None,None,None]):
+        
+        xyz0 = [self.data.qpos["box0_x"].copy(),
+                self.data.qpos["box0_y"].copy(),
+                self.data.qpos["box0_z"].copy()]
+
+        xyz1 = [self.data.qpos["box1_x"].copy(),
+                self.data.qpos["box1_y"].copy(),
+                self.data.qpos["box1_z"].copy()]
+
+        with self.physics.reset_context():
+            self.data.qpos["box0_x"] = xyz0[0] if box0[0] is None else box0[0]
+            self.data.qpos["box0_y"] = 0.001 if box0[1] is None else box0[1]
+            self.data.qpos["box0_z"] = xyz0[2] if box0[2] is None else box0[2]
+            self.data.qpos["box1_x"] = xyz1[0] if box1[0] is None else box1[0]
+            self.data.qpos["box1_y"] = 0.001 if box1[1] is None else box1[1]
+            self.data.qpos["box1_z"] = xyz1[2] if box1[2] is None else box1[2]
+
+    def render(self, **render_kwargs):
+        kwargs = render_kwargs if render_kwargs else self.render_kwargs
+        return self.dm_env.physics.render(**kwargs)
+
+    def reset(self):
+        ts =  self.dm_env.reset()
+        change_object_color(self,"self",self.red)
+        change_object_color(self,"target",self.green)
+
+
+
+    def step(self, a):
+        return self.dm_env.step(a)
 
 def dict_to_flat_arr(d):
     flat_arrs = np.concatenate([np.array(v).reshape(-1)
@@ -637,6 +687,11 @@ def numpy_to_tensor_img(img):
     img = torch.from_numpy(img).float()
     return img.permute(0, 3, 1, 2)
 
+def change_object_color(env,obj, color):
+    _MATERIALS = [obj]
+
+    env.model.mat_rgba[_MATERIALS] = list(
+        color)+[1.0]
 
 if __name__ == "__main__":
     env = BaseEnv('reacher', 'easy')
