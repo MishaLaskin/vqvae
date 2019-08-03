@@ -6,15 +6,20 @@ from vqvae.models.vqvae import VQVAE, TemporalVQVAE
 from vqvae import utils
 import torch
 
+
 class StackerLatentGoalEnv:
 
-    def __init__(self, obs_dim=128, goal_dim=128,
-                 env_name='stacker', task='stack_2_blocks',
-                 max_steps=100, reward_type='sparse', threshold=0.1,
+    def __init__(self,
+                 obs_dim=128,
+                 goal_dim=128,
+                 env_name='stacker',
+                 task='just_place',
+                 max_steps=100,
+                 reward_type='place_sparse',
+                 threshold=0.1,
                  render_kwargs=dict(width=64, height=64, camera_id=0),
-                 gpu_id=0, easy_reset=False
-
-                 ):
+                 gpu_id=0,
+                 easy_reset=False):
 
         self.max_steps = max_steps
         self.obs_dim = obs_dim
@@ -27,7 +32,11 @@ class StackerLatentGoalEnv:
         self.reward_type = reward_type
         self.render_kwargs = render_kwargs
         self.easy_reset = easy_reset
-        accepted_reward_types = ["dense", "sparse"]
+        self.magnet_active = False
+        accepted_reward_types = ["place_dense",
+                                 "place_sparse",
+                                 "pick_and_place_sparse",
+                                 "pick_and_place_sparse"]
         assert self.reward_type in accepted_reward_types, "Invalid reward type"
         self.threshold = threshold
 
@@ -59,8 +68,8 @@ class StackerLatentGoalEnv:
             ('state_achieved_goal', goal_space)
         ])
 
-        model1_filename = '/home/misha/downloads/vqvae/results/vqvae_data_pusher_jul25_ne128nd2.pth'
-        model2_filename = '/home/misha/downloads/vqvae/results/vqvae_data_block_jul25_ne128nd2.pth'
+        model1_filename = '/home/misha/research/vqvae/results/vqvae_data_just_place_aug1_ne128nd2.pth'
+        model2_filename = '/home/misha/research/vqvae/results/vqvae_data_two_blocks_aug1_ne128nd2.pth'
 
         self.model1, _ = utils.load_model(
             model1_filename, temporal=False)
@@ -70,20 +79,31 @@ class StackerLatentGoalEnv:
 
         self.block_env = RefTwoBlocksEnv()
 
-        self.red = np.array([246.,91.,75.])/255.
-        self.green = np.array([93.,205.,189.])/255.
+        #self.red = np.array([246., 91., 75.])/255.
+        #self.green = np.array([93., 205., 189.])/255.
+
+    def set_magnet_state(self, magnet_state=1):
+        current_pos = self.dm_env.physics.named.data.qpos.copy()
+        with self.dm_env.physics.reset_context():
+            for i in range(len(current_pos)):
+                self.dm_env.physics.named.data.qpos[i] = current_pos[i]
+            self.dm_env.physics.named.model.eq_active[0] = magnet_state
 
     def reset(self):
         """ reset and get state obs, state ag, and state dg """
+        self.magnet_active = False
+        if 'pick_and_place' in self.reward_type:
+
+            # deactivate magnet
+            self.set_magnet_state(magnet_state=0)
+
         ts = self.dm_env.reset()
-        #change_object_color(self,"self",self.green)
-        change_object_color(self,"target",self.red)
+        # change_object_color(self,"self",self.green)
 
         self.steps = 0
-        hand_pos = self.data.geom_xpos["hand"].copy()
         box_pos = self.data.geom_xpos["box0"].copy()
         second_box_pos = self.data.geom_xpos["box1"].copy()
-        
+
         self.goal = np.array([second_box_pos[0], 0.001, self.box_size*3])
         flat_obs = dict_to_flat_arr(ts.observation)
         flat_obs = np.append(flat_obs, [self.goal[0], self.goal[2]])
@@ -95,7 +115,8 @@ class StackerLatentGoalEnv:
         """ use block env to set desired goal encoding and encode achieved goal """
         self.block_env.reset()
         # desired goal
-        self.block_env.set_block_pos(box0=[self.goal[0],None,self.goal[2]], box1=second_box_pos)
+        self.block_env.set_block_pos(
+            box0=[self.goal[0], None, self.goal[2]], box1=second_box_pos)
         goal_img = self.block_env.render(**self.render_kwargs)
         self.goal_image = goal_img
 
@@ -127,17 +148,17 @@ class StackerLatentGoalEnv:
     def compute_reward(self, action, obs_dict):
         distance = np.linalg.norm(
             obs_dict["desired_goal"] - obs_dict["achieved_goal"])
-        if self.reward_type == 'dense':
+        if "dense" in self.reward_type:
             return -distance.astype(float)
-        if self.reward_type == 'sparse':
+        if "sparse" in self.reward_type:
             return - (distance > self.threshold).astype(float)
 
     def compute_rewards(self, actions, obs_dict):
         distances = np.linalg.norm(
             obs_dict["desired_goal"] - obs_dict["achieved_goal"], axis=1)
-        if self.reward_type == 'dense':
+        if "dense" in self.reward_type:
             return -distances.astype(float)
-        if self.reward_type == 'sparse':
+        if "sparse" in self.reward_type:
             return - (distances > self.threshold).astype(float)
 
     def is_done(self, obs_dict):
@@ -152,12 +173,24 @@ class StackerLatentGoalEnv:
             return False, False
 
     def step(self, action):
+
+        if 'pick_and_place' in self.reward_type:
+            # get action
+            #magnet_action = action[-1]
+            # check if hand is close enough to activate magnet
+            hand_pos = self.data.geom_xpos["hand"].copy()
+            box_pos = self.data.geom_xpos["box0"].copy()
+            magnet_close_enough = np.linalg.norm(hand_pos-box_pos) <= 0.1
+            if magnet_close_enough and not self.magnet_active:
+                self.set_magnet_state(magnet_state=1)
+                self.magnet_active = True
+
         ts = self.dm_env.step(action)
         self.steps += 1
         flat_obs = dict_to_flat_arr(ts.observation)
         flat_obs = np.append(flat_obs, [self.goal[0], self.goal[2]])
         box_pos = self.data.geom_xpos["box0"].copy()
-
+        second_box_pos = self.data.geom_xpos["box1"].copy()
         """ get image and encode it to get obs """
         img = self.render(**self.render_kwargs)
         obs_z = self.img_to_latent(img, self.model1)
@@ -165,7 +198,7 @@ class StackerLatentGoalEnv:
         """ use block env to set block and get achieved goal """
 
         # achieved goal
-        self.block_env.set_block_pos(x=box_pos[0], z=box_pos[2])
+        self.block_env.set_block_pos(box0=box_pos, box1=second_box_pos)
         achieved_img = self.block_env.render(**self.render_kwargs)
         achieved_z = self.img_to_latent(achieved_img, self.model2)
 
@@ -181,10 +214,165 @@ class StackerLatentGoalEnv:
         reward = self.compute_reward(action, obs_dict)
         done, is_success = self.is_done(obs_dict)
         info = dict(is_success=is_success)
+        if 'pick_and_place' in self.reward_type:
+            info["magnet_active"] = self.magnet_active
         return obs_dict, reward, done, info
 
     def render(self, **render_kwargs):
         return self.dm_env.physics.render(**render_kwargs)
+
+
+class StackerGoalEnv:
+
+    def __init__(self, obs_dim=28, goal_dim=3,
+                 env_name='stacker',
+                 task='stack_2_blocks',
+                 max_steps=200,
+                 reward_type='place_dense',
+                 threshold=0.05):
+
+        self.max_steps = max_steps
+        self.obs_dim = obs_dim
+        self.goal_dim = goal_dim
+        self.dm_env = suite.load(env_name, task)
+        self.physics = self.dm_env.physics
+        self.model = self.physics.named.model
+        self.data = self.physics.named.data
+        self.box_size = self.model.geom_size['box0', 0]
+        self.reward_type = reward_type
+        self.magnet_active = False
+        accepted_reward_types = ["place_dense",
+                                 "place_sparse",
+                                 "pick_and_place_sparse",
+                                 "pick_and_place_sparse"]
+        assert self.reward_type in accepted_reward_types, "Invalid reward type"
+        self.threshold = threshold
+        #
+        self.act_dim = self.dm_env.action_spec().shape[0]
+        self.obs_dim = obs_dim
+        #self.magnet_action = True if reward_type == "pick_and_place_sparse" else False
+        # if self.magnet_action:
+        #    self.act_dim += 1
+        #    self.obs_dim += 1
+        # actions always between -1.0 and 1.0
+        self.action_space = Box(
+            high=1.0, low=-1.0,
+            shape=(self.act_dim,)
+        )
+
+        # observations are, in principle, unbounded
+        flat_obs_space = Box(
+            high=float("inf"), low=-float("inf"),
+            shape=(self.obs_dim,))
+
+        goal_space = Box(
+            high=float("inf"), low=-float("inf"),
+            shape=(goal_dim,))
+
+        self.observation_space = Dict([
+            ('observation', flat_obs_space),
+            ('desired_goal', goal_space),
+            ('achieved_goal', goal_space),
+            ('state_observation', flat_obs_space),
+            ('state_desired_goal', goal_space),
+            ('state_achieved_goal', goal_space)
+        ])
+
+    def reset(self):
+        self.magnet_active = False
+        if 'pick_and_place' in self.reward_type:
+            # deactivate magnet
+            self.set_magnet_state(magnet_state=0)
+        ts = self.dm_env.reset()
+        self.steps = 0
+        box_pos = self.data.geom_xpos["box0"].copy()
+        target_pos = self.data.geom_xpos["box1"].copy()
+
+        self.goal = target_pos + [0., 0., 2*self.box_size]
+        flat_obs = dict_to_flat_arr(ts.observation)
+        flat_obs = np.append(flat_obs, [self.goal[0], self.goal[2]])
+
+        obs_dict = dict(
+            observation=flat_obs,
+            desired_goal=self.goal,
+            achieved_goal=box_pos,
+            state_observation=flat_obs,
+            state_desired_goal=self.goal,
+            state_achieved_goal=box_pos
+        )
+        return obs_dict
+
+    def compute_reward(self, action, obs_dict):
+        distance = np.linalg.norm(
+            obs_dict["desired_goal"] - obs_dict["achieved_goal"])
+        if "dense" in self.reward_type:
+            return -distance.astype(float)
+        if "sparse" in self.reward_type:
+            return - (distance > self.threshold).astype(float)
+
+    def compute_rewards(self, actions, obs_dict):
+        distances = np.linalg.norm(
+            obs_dict["desired_goal"] - obs_dict["achieved_goal"], axis=1)
+        if "dense" in self.reward_type:
+            return -distances.astype(float)
+        if "sparse" in self.reward_type:
+            return - (distances > self.threshold).astype(float)
+
+    def is_done(self, obs_dict):
+        distance = np.linalg.norm(
+            obs_dict["desired_goal"] - obs_dict["achieved_goal"])
+
+        if distance < self.threshold:
+            return True, True
+        elif self.steps >= self.max_steps:
+            return True, False
+        else:
+            return False, False
+
+    def step(self, action):
+        if 'pick_and_place' in self.reward_type:
+            # get action
+            #magnet_action = action[-1]
+            # check if hand is close enough to activate magnet
+            hand_pos = self.data.geom_xpos["hand"].copy()
+            box_pos = self.data.geom_xpos["box0"].copy()
+            magnet_close_enough = np.linalg.norm(hand_pos-box_pos) <= 0.1
+            if magnet_close_enough and not self.magnet_active:
+                self.set_magnet_state(magnet_state=1)
+                self.magnet_active = True
+
+        ts = self.dm_env.step(action)
+        self.steps += 1
+        flat_obs = dict_to_flat_arr(ts.observation)
+        flat_obs = np.append(flat_obs, [self.goal[0], self.goal[2]])
+
+        box_pos = self.data.geom_xpos["box0"].copy()
+        obs_dict = dict(
+            observation=flat_obs,
+            desired_goal=self.goal,
+            achieved_goal=box_pos,
+            state_observation=flat_obs,
+            state_desired_goal=self.goal,
+            state_achieved_goal=box_pos
+        )
+
+        reward = self.compute_reward(action, obs_dict)
+        done, is_success = self.is_done(obs_dict)
+        info = dict(is_success=is_success)
+        if 'pick_and_place' in self.reward_type:
+            info["magnet_active"] = self.magnet_active
+        return obs_dict, reward, done, info
+
+    def set_magnet_state(self, magnet_state=1):
+        current_pos = self.dm_env.physics.named.data.qpos.copy()
+        with self.dm_env.physics.reset_context():
+            for i in range(len(current_pos)):
+                self.dm_env.physics.named.data.qpos[i] = current_pos[i]
+            self.dm_env.physics.named.model.eq_active[0] = magnet_state
+
+    def render(self, **render_kwargs):
+        return self.dm_env.physics.render(**render_kwargs)
+
 
 class RefTwoBlocksEnv:
 
@@ -196,11 +384,11 @@ class RefTwoBlocksEnv:
         self.data = self.physics.named.data
         self.box_size = self.model.geom_size['box0', 0]
         self.render_kwargs = render_kwargs
-        self.red = np.array([246.,91.,75.])/255.
-        self.green = np.array([93.,205.,189.])/255.
+        self.red = np.array([246., 91., 75.])/255.
+        self.green = np.array([93., 205., 189.])/255.
 
-    def set_block_pos(self, box0=[None,None,None],box1=[None,None,None]):
-        
+    def set_block_pos(self, box0=[None, None, None], box1=[None, None, None]):
+
         xyz0 = [self.data.qpos["box0_x"].copy(),
                 self.data.qpos["box0_y"].copy(),
                 self.data.qpos["box0_z"].copy()]
@@ -222,12 +410,10 @@ class RefTwoBlocksEnv:
         return self.dm_env.physics.render(**kwargs)
 
     def reset(self):
-        ts =  self.dm_env.reset()
-        
-        #change_object_color(self,"self",self.green)
-        change_object_color(self,"target",self.red)
+        ts = self.dm_env.reset()
 
-
+        # change_object_color(self,"self",self.green)
+        change_object_color(self, "target", self.red)
 
     def step(self, a):
         return self.dm_env.step(a)
@@ -287,7 +473,6 @@ def load_model(model_path, gpu_id, device):
     return model, params
 
 
-
 def dict_to_flat_arr(d):
     flat_arrs = np.concatenate([np.array(v).reshape(-1)
                                 for v in list(d.values())]).reshape(-1)
@@ -326,11 +511,13 @@ def numpy_to_tensor_img(img):
     img = torch.from_numpy(img).float()
     return img.permute(0, 3, 1, 2)
 
-def change_object_color(env,obj, color):
+
+def change_object_color(env, obj, color):
     _MATERIALS = [obj]
 
     env.model.mat_rgba[_MATERIALS] = list(
         color)+[1.0]
+
 
 if __name__ == "__main__":
     env = BaseEnv('reacher', 'easy')

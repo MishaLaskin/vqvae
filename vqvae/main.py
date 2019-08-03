@@ -29,9 +29,9 @@ parser.add_argument("--dataset",  type=str, default='PUSHER')
 # whether or not to save model
 parser.add_argument("-save", action="store_true")
 parser.add_argument("-temporal", action="store_true")
-parser.add_argument("--filename",  type=str, default='block_jul25')
+parser.add_argument("--filename",  type=str, default='just_place_aug1')
 parser.add_argument("--data_file_path", type=str,
-                    default='/home/misha/downloads/vqvae/data/single_block_length100_paths_100.npy')
+                    default='/home/misha/research/vqvae/data/just_place_length100_paths_400.npy')
 args = parser.parse_args()
 
 
