@@ -59,14 +59,14 @@ class EasyPusher(BaseEnv):
 
 class GoalPusher(GoalBaseEnv):
     def __init__(self,
-                 max_steps=1000,
+                 max_steps=500,
                  threshold=0.05,
                  reward_type='sparse',
                  img_dim=32,
                  camera_id=0
                  ):
 
-        super().__init__(env_name='stacker', mode='stack_1', goal_dim=3)
+        super().__init__(env_name='stacker', mode='push_simple', goal_dim=3)
         self.threshold = threshold
         self.max_steps = max_steps
         self.steps = 0
@@ -139,8 +139,11 @@ class GoalPusher(GoalBaseEnv):
             self.steps += 1
 
     def get_desired_goal(self):
-        desired_goal = self.dm_env.physics.named.data.geom_xpos['target'].copy(
-        )
+        if 'target' in self.dm_env.physics.named.data.geom_xpos:
+            desired_goal = self.dm_env.physics.named.data.geom_xpos['target'].copy(
+            )
+        else:
+            desired_goal = np.array([np.random.uniform(-.3,.3),0,0.044])
         return desired_goal
 
     def get_achieved_goal(self):

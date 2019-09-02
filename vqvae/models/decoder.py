@@ -19,39 +19,40 @@ class Decoder(nn.Module):
 
     """
 
-    def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim):
+    def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim,img_size=32):
         super(Decoder, self).__init__()
         kernel = 4
         stride = 2
 
         # use this for 32px input
-        """
-        self.inverse_conv_stack = nn.Sequential(
-            nn.ConvTranspose2d(
-                in_dim, h_dim, kernel_size=kernel-1, stride=stride-1, padding=1),
-            ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
-            nn.ConvTranspose2d(h_dim, h_dim // 2,
-                                kernel_size=kernel, stride=stride, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(h_dim//2, 3, kernel_size=kernel,
-                                stride=stride, padding=1)
-        )
-        """
+        if img_size==32:
 
-        # use this for 64px input
-        self.inverse_conv_stack = nn.Sequential(
-            nn.ConvTranspose2d(
-                in_dim, h_dim, kernel_size=kernel-1, stride=stride-1, padding=1),
-            ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
-            nn.ConvTranspose2d(h_dim, h_dim // 2,
-                               kernel_size=kernel, stride=stride, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(h_dim // 2, h_dim // 2,
-                               kernel_size=kernel, stride=stride, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(h_dim//2, 3, kernel_size=kernel,
-                               stride=stride, padding=1)
-        )
+            self.inverse_conv_stack = nn.Sequential(
+                nn.ConvTranspose2d(
+                    in_dim, h_dim, kernel_size=kernel-1, stride=stride-1, padding=1),
+                ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
+                nn.ConvTranspose2d(h_dim, h_dim // 2,
+                                    kernel_size=kernel, stride=stride, padding=1),
+                nn.ReLU(),
+                nn.ConvTranspose2d(h_dim//2, 3, kernel_size=kernel,
+                                    stride=stride, padding=1)
+            )
+        if img_size==64:
+            # use this for 64px input
+            self.inverse_conv_stack = nn.Sequential(
+                nn.ConvTranspose2d(
+                    in_dim, h_dim, kernel_size=kernel-1, stride=stride-1, padding=1),
+                ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
+                nn.ConvTranspose2d(h_dim, h_dim // 2,
+                                kernel_size=kernel, stride=stride, padding=1),
+                nn.ReLU(),
+                nn.ConvTranspose2d(h_dim // 2, h_dim // 2,
+                                kernel_size=kernel, stride=stride, padding=1),
+                nn.ReLU(),
+                nn.ConvTranspose2d(h_dim//2, 3, kernel_size=kernel,
+                                stride=stride, padding=1)
+            )
+            
 
     def forward(self, x):
         return self.inverse_conv_stack(x)

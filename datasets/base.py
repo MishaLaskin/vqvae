@@ -10,12 +10,22 @@ class ImageDataset(Dataset):
     requires numpy and cv2 to work
     """
 
-    def __init__(self, file_path, train=True, transform=None, make_temporal=False, path_length=100):
+    def __init__(self, 
+                file_path, 
+                train=True, 
+                transform=None, 
+                make_temporal=False, 
+                include_goals=False,
+                path_length=100):
         print('Loading data')
         data = np.load(file_path, allow_pickle=True)
         print('Done loading data')
-        data = np.array(data.item().get('image_observation'))
-
+        img_data = np.array(data.item().get('image_observation'))
+        self.goals = None
+        if include_goals:
+            self.goals = np.array(data.item().get('achieved_goal'))
+          
+        data = img_data
         self.n = data.shape[0]
         self.cutoff = self.n//10
         self.data = data[:-self.cutoff] if train else data[-self.cutoff:]
@@ -26,7 +36,10 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index):
         img = self.data[index]
-
+        if self.goals is not None:
+            goal = self.goals[index]
+        else:
+            goal = 0
         if self.transform is not None:
             img = self.transform(img)
 
@@ -35,14 +48,16 @@ class ImageDataset(Dataset):
         # if we want to keep track of adjacent states
         # e.g.s obs_t and obs_{t-1} we use make_temporal
         if self.train and self.make_temporal:
-            if index % self.path_length == 0:
+            if index % self.path_length == self.path_length-1:
+                img2 = self.data[index]
+            elif index % self.path_length > self.path_length-10:
                 img2 = self.data[index+1]
             else:
-                img2 = self.data[index-1]
+                img2 = self.data[index+np.random.randint(10)]
             img2 = self.transform(img2)
 
-            return img, img2, label
-        return img, label
+            return img, img2, goal
+        return img, goal
 
     def __len__(self):
         return len(self.data)

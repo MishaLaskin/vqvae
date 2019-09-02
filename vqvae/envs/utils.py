@@ -396,9 +396,9 @@ class SimpleGoalEnv:
 class LatentGoalEnv:
 
     def __init__(self, obs_dim=128, goal_dim=128,
-                 env_name='stacker', task='push_1',
+                 env_name='stacker', task='push_simple',
                  max_steps=100, reward_type='sparse', threshold=0.1,
-                 render_kwargs=dict(width=64, height=64, camera_id=0),
+                 render_kwargs=dict(width=32, height=32, camera_id=0),
                  gpu_id=0, easy_reset=False
 
                  ):
@@ -446,8 +446,8 @@ class LatentGoalEnv:
             ('state_achieved_goal', goal_space)
         ])
 
-        model1_filename = '/home/misha/downloads/vqvae/results/vqvae_data_pusher_jul25_ne128nd2.pth'
-        model2_filename = '/home/misha/downloads/vqvae/results/vqvae_data_block_jul25_ne128nd2.pth'
+        model1_filename = '/home/misha/downloads/vqvae/results/vqvae_data_pusher_aug18_ne128nd2.pth'
+        model2_filename = '/home/misha/downloads/vqvae/results/vqvae_data_block_push_simple_sep1_ne128nd2.pth'
 
         self.model1, _ = utils.load_model(
             model1_filename, temporal=False)
@@ -572,6 +572,7 @@ class LatentGoalEnv:
         done, is_success = self.is_done(obs_dict)
         info = dict(is_success=is_success)
         return obs_dict, reward, done, info
+
 
     def render(self, **render_kwargs):
         return self.dm_env.physics.render(**render_kwargs)

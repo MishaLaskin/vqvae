@@ -5,6 +5,7 @@ import numpy as np
 from vqvae.models.encoder import Encoder
 from vqvae.models.quantizer import VectorQuantizer
 from vqvae.models.decoder import Decoder
+import torch.nn.functional as F
 
 
 class VQVAE(nn.Module):
@@ -65,11 +66,11 @@ class TemporalVQVAE(VQVAE):
             z_e)
         x_hat = self.decoder(z_q)
 
-        margin = 1e-6
+        margin = .01
         temporal_loss = self.temporal_penalty * \
-            (torch.mean(z_e-z_e2.detach())**2 -
-             torch.mean(z_e-z_e3.detach())**2 + margin)
-
+            (torch.mean(z_e-z_e2)**2 -
+             torch.mean(z_e-z_e3)**2 + margin)
+        temporal_loss = F.relu(temporal_loss)
         if verbose:
             print('original data shape:', x.shape)
             print('encoded data shape:', z_e.shape)

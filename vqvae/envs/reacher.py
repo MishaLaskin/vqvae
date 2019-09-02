@@ -771,9 +771,10 @@ class GoalReacherNoTargetVQVAE(GoalVQVAEEnv):
         return img
 
     def normalize_indices(self, x):
-        assert max(x) <= 7.0, 'index mismatch during normalization'
+        dim = 128
+        assert max(x) <= dim, 'index mismatch during normalization'
         x = x.float()
-        x /= 7.0
+        x /= dim
         x -= 0.5
         x /= 0.5
         return x

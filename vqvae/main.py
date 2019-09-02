@@ -29,9 +29,9 @@ parser.add_argument("--dataset",  type=str, default='PUSHER')
 # whether or not to save model
 parser.add_argument("-save", action="store_true")
 parser.add_argument("-temporal", action="store_true")
-parser.add_argument("--filename",  type=str, default='just_place_aug1')
+parser.add_argument("--filename",  type=str, default='block_push_simple_sep1')
 parser.add_argument("--data_file_path", type=str,
-                    default='/home/misha/research/vqvae/data/just_place_length100_paths_400.npy')
+                    default='/home/misha/downloads/rlsink/saved_paths/single_block_length100_paths_500.npy')
 args = parser.parse_args()
 
 
@@ -132,9 +132,10 @@ def train_temporal_vqvae():
         optimizer.zero_grad()
 
         embedding_loss, temporal_loss, x_hat, perplexity = model(x, x2, x3)
-        recon_loss = 100.0 * torch.mean((x_hat - x)**2) / x_train_var
+        #temporal_loss*=10.0
+        recon_loss = 10000.0 * torch.mean((x_hat - x)**2) / x_train_var
         loss = recon_loss + embedding_loss + temporal_loss
-
+        #loss = temporal_loss
         loss.backward()
         optimizer.step()
 

@@ -73,7 +73,7 @@ def load_block():
     return train, val
 
 
-def load_dm_data(data_file_path=None, state_version=False, make_temporal=False):
+def load_dm_data(data_file_path=None, state_version=False, make_temporal=False,include_goals=False):
 
     if data_file_path is None:
         raise ValueError('Please provide a data_file_path input string')
@@ -83,18 +83,20 @@ def load_dm_data(data_file_path=None, state_version=False, make_temporal=False):
         val = StateDataset(data_file_path, train=False)
     else:
         train = ImageDataset(data_file_path, train=True, make_temporal=make_temporal,
-                             transform=transforms.Compose([
-                                 transforms.ToTensor(),
-                                 transforms.Normalize(
-                                     (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                             ]))
+                            include_goals=include_goals,
+                            transform=transforms.Compose([
+                                transforms.ToTensor(),
+                                transforms.Normalize(
+                                    (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                            ]))
 
         val = ImageDataset(data_file_path, train=False, make_temporal=False,
-                           transform=transforms.Compose([
-                               transforms.ToTensor(),
-                               transforms.Normalize(
-                                   (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                           ]))
+                            include_goals=include_goals,
+                            transform=transforms.Compose([
+                                transforms.ToTensor(),
+                                transforms.Normalize(
+                                    (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                            ]))
     return train, val
 
 
@@ -124,7 +126,7 @@ def data_loaders(train_data, val_data, batch_size, shuffle=True):
     return train_loader, val_loader
 
 
-def load_data_and_data_loaders(dataset_name, data_file_path, batch_size, make_temporal=False):
+def load_data_and_data_loaders(dataset_name, data_file_path, batch_size, make_temporal=False,include_goals=False):
     if dataset_name == 'CIFAR10':
         training_data, validation_data = load_cifar()
         training_loader, validation_loader = data_loaders(
@@ -147,7 +149,7 @@ def load_data_and_data_loaders(dataset_name, data_file_path, batch_size, make_te
     # DM stands from dm_control library of envs
     elif dataset_name == 'POINTMASS' or dataset_name == 'REACHER' or dataset_name == 'PUSHER':
         training_data, validation_data = load_dm_data(
-            data_file_path, make_temporal=make_temporal)
+            data_file_path, make_temporal=make_temporal,include_goals=include_goals)
         training_loader, validation_loader = data_loaders(
             training_data, validation_data, batch_size)
 
