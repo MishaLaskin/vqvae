@@ -2,7 +2,7 @@ certifi==2019.3.9
 cffi==1.12.3
 mkl-fft==1.0.12
 mkl-random==1.0.2
-numpy==1.16.4
+numpy==1.22.0
 olefile==0.46
 Pillow==6.0.0
 pycparser==2.19
