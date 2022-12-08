@@ -1,4 +1,4 @@
-certifi==2019.3.9
+certifi==2022.12.7
 cffi==1.12.3
 mkl-fft==1.0.12
 mkl-random==1.0.2
